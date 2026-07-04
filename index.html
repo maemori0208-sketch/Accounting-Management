@@ -1,0 +1,1944 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>会計管理アプリ</title>
+<!-- PWA：URL公開時に「ホーム画面に追加」でアプリのように使えます -->
+<meta name="theme-color" content="#2563eb">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="会計管理">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-512.png">
+<link rel="icon" href="icon-512.png">
+<style>
+:root{
+  --bg:#f4f6f9; --panel:#ffffff; --field-bg:#ffffff; --ink:#1f2937; --muted:#6b7280;
+  --line:#e5e7eb; --brand:#2563eb; --brand-d:#1d4ed8;
+  --income:#059669; --income-bg:#ecfdf5;
+  --expense:#dc2626; --expense-bg:#fef2f2;
+  --transfer:#7c3aed; --transfer-bg:#f5f3ff;
+  --shadow:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.04);
+  color-scheme:light;
+}
+:root[data-theme="dark"]{
+  --bg:#0f172a; --panel:#1e293b; --field-bg:#0f172a; --ink:#e5e7eb; --muted:#94a3b8;
+  --line:#334155; --brand:#3b82f6; --brand-d:#2563eb;
+  --income:#34d399; --income-bg:rgba(52,211,153,.14);
+  --expense:#f87171; --expense-bg:rgba(248,113,113,.14);
+  --transfer:#a78bfa; --transfer-bg:rgba(167,139,250,.14);
+  --shadow:0 1px 3px rgba(0,0,0,.5),0 1px 2px rgba(0,0,0,.4);
+  color-scheme:dark;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Segoe UI","Hiragino Kaku Gothic ProN","Meiryo",sans-serif;
+  background:var(--bg);color:var(--ink);line-height:1.6;font-size:14px}
+header{background:var(--panel);border-bottom:1px solid var(--line);
+  padding:12px 24px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:20;box-shadow:var(--shadow);flex-wrap:wrap}
+header h1{font-size:18px;font-weight:700;display:flex;align-items:center;gap:8px}
+header .logo{width:28px;height:28px;background:var(--brand);border-radius:7px;
+  display:grid;place-items:center;color:#fff;font-size:16px}
+.ctx{display:flex;align-items:center;gap:8px}
+.ctx .ctxgroup{display:flex;flex-direction:column;gap:2px}
+.ctx label{font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.03em;padding-left:2px}
+.ctx select{padding:6px 10px;border:1px solid var(--line);border-radius:8px;font-weight:600;font-size:13px;background:var(--field-bg);color:var(--ink);min-width:120px}
+.ctx select#orgSelect{border-color:var(--brand);color:var(--brand-d)}
+nav{display:flex;gap:4px;margin-left:auto;flex-wrap:wrap}
+nav button{background:none;border:none;padding:8px 14px;border-radius:8px;cursor:pointer;
+  font-size:14px;color:var(--muted);font-weight:600;transition:.15s}
+nav button:hover{background:var(--bg)}
+nav button.active{background:var(--brand);color:#fff}
+.hdr-actions{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.theme-btn{background:var(--field-bg);border:1px solid var(--line);border-radius:8px;width:38px;height:38px;
+  font-size:16px;line-height:1;cursor:pointer;color:var(--ink);display:grid;place-items:center;flex-shrink:0}
+.theme-btn:hover{background:var(--bg)}
+main{max-width:1100px;margin:0 auto;padding:24px}
+.view{display:none;animation:fade .2s}
+.view.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+h2.section{font-size:16px;margin-bottom:6px;font-weight:700}
+.section-sub{color:var(--muted);font-size:13px;margin-bottom:18px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:24px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px;box-shadow:var(--shadow)}
+.card .label{color:var(--muted);font-size:12px;font-weight:600;margin-bottom:6px;letter-spacing:.02em}
+.card .value{font-size:24px;font-weight:700;font-variant-numeric:tabular-nums}
+.card.income .value{color:var(--income)}
+.card.expense .value{color:var(--expense)}
+.card .sub{font-size:12px;color:var(--muted);margin-top:4px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px;box-shadow:var(--shadow);margin-bottom:24px}
+.panel h3{font-size:15px;margin-bottom:14px;font-weight:700;display:flex;align-items:center;gap:8px;justify-content:space-between}
+.grid-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;align-items:end}
+label.field{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:600;color:var(--muted)}
+input,select,textarea{font-family:inherit;font-size:14px;padding:9px 11px;border:1px solid var(--line);
+  border-radius:8px;background:var(--field-bg);color:var(--ink);width:100%}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px rgba(37,99,235,.12)}
+button.btn{background:var(--brand);color:#fff;border:none;padding:10px 18px;border-radius:8px;
+  font-size:14px;font-weight:600;cursor:pointer;transition:.15s;white-space:nowrap}
+button.btn:hover{background:var(--brand-d)}
+button.btn.ghost{background:var(--field-bg);color:var(--ink);border:1px solid var(--line)}
+button.btn.ghost:hover{background:var(--bg)}
+button.btn.sm{padding:6px 12px;font-size:13px}
+button.btn.danger{background:var(--expense)}
+button.btn.danger:hover{background:#b91c1c}
+.seg{display:inline-flex;background:var(--bg);border-radius:9px;padding:3px;gap:2px}
+.seg button{border:none;background:none;padding:7px 16px;border-radius:7px;cursor:pointer;font-weight:600;font-size:13px;color:var(--muted)}
+.seg button.on-income{background:var(--income);color:#fff}
+.seg button.on-expense{background:var(--expense);color:#fff}
+.seg button.on-transfer{background:var(--transfer);color:#fff}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+th{color:var(--muted);font-size:11px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;background:var(--bg)}
+tbody tr:hover{background:var(--bg)}
+td.num{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+.tag{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700}
+.tag.income{background:var(--income-bg);color:var(--income)}
+.tag.expense{background:var(--expense-bg);color:var(--expense)}
+.tag.transfer{background:var(--transfer-bg);color:var(--transfer)}
+.amt-income{color:var(--income)}
+.amt-expense{color:var(--expense)}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+.toolbar .spacer{margin-left:auto}
+.muted{color:var(--muted)}
+.empty{text-align:center;padding:40px;color:var(--muted)}
+.acct-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+.acct{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;box-shadow:var(--shadow);position:relative}
+.acct .type{font-size:11px;font-weight:700;color:#fff;padding:2px 8px;border-radius:6px;display:inline-block;margin-bottom:8px}
+.acct .type.cash{background:#f59e0b}
+.acct .type.bank{background:#0ea5e9}
+.acct .type.time{background:#0d9488}
+.acct .type.other{background:#64748b}
+.acct .name{font-weight:700;font-size:15px;margin-bottom:4px}
+.acct .bal{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums}
+.acct .bal.neg{color:var(--expense)}
+.acct .del{position:absolute;top:12px;right:12px;background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;line-height:1;padding:2px}
+.acct .del:hover{color:var(--expense)}
+.acct .edit{position:absolute;top:12px;right:40px;background:none;border:none;color:var(--muted);cursor:pointer;font-size:15px;line-height:1;padding:2px}
+.acct .edit:hover{color:var(--brand)}
+.report-table th,.report-table td{border-bottom:1px solid var(--line)}
+.report-table .total-row{font-weight:700;background:var(--bg)}
+.report-table .total-row td{border-top:2px solid var(--ink)}
+.chk{display:flex;flex-direction:row;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--ink);cursor:pointer}
+.chk input{width:auto;margin:0}
+.sign-block{margin-top:28px;border-top:2px solid var(--ink);padding-top:16px}
+.audit-text{font-size:13px;margin-bottom:14px;line-height:1.8}
+.sign-date{font-size:13px;margin-bottom:14px;color:var(--muted)}
+.sign-rows{display:flex;flex-wrap:wrap;gap:20px 28px}
+.sign-line{display:flex;align-items:flex-end;gap:10px;min-width:230px;flex:1 1 230px}
+.sign-role{font-weight:700;font-size:13px;white-space:nowrap;padding-bottom:3px}
+.sign-name{flex:1;border-bottom:1px solid var(--ink);min-width:110px;padding:0 6px 4px;min-height:24px;text-align:center;font-weight:600}
+.sign-seal{border:1px solid var(--line);border-radius:6px;width:36px;height:36px;display:grid;place-items:center;color:var(--muted);font-size:10px;flex:0 0 auto}
+.bar{height:8px;border-radius:4px;background:var(--line);overflow:hidden;margin-top:4px}
+.bar > span{display:block;height:100%}
+.chart-wrap{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.donut{width:172px;height:172px;flex:0 0 auto}
+.donut text{fill:var(--ink);font-family:inherit;font-weight:700;text-anchor:middle}
+.donut .donut-sub{fill:var(--muted);font-weight:600}
+.legend{list-style:none;flex:1 1 180px;min-width:158px;margin:0;padding:0}
+.legend li{display:flex;align-items:center;gap:8px;padding:5px 0;font-size:13px;border-bottom:1px solid var(--line)}
+.legend li:last-child{border-bottom:none}
+.legend .sw{width:12px;height:12px;border-radius:3px;flex:0 0 auto}
+.legend .lg-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.legend .lg-val{color:var(--muted);font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;
+  z-index:100;padding:16px;animation:fade .15s}
+.modal-overlay[hidden]{display:none}
+.modal{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:14px;
+  box-shadow:0 12px 44px rgba(0,0,0,.4);max-width:560px;width:100%;max-height:88vh;display:flex;flex-direction:column}
+.modal-head{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--line)}
+.modal-head h3{font-size:16px;font-weight:700}
+.modal-close{background:none;border:none;font-size:24px;line-height:1;cursor:pointer;color:var(--muted);padding:2px 8px;border-radius:8px}
+.modal-close:hover{background:var(--bg);color:var(--ink)}
+.modal-body{padding:8px 20px;overflow-y:auto}
+.modal-foot{padding:14px 20px;border-top:1px solid var(--line);text-align:right}
+.help-item{display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)}
+.help-item:last-child{border-bottom:none}
+.help-ico{font-size:20px;flex:0 0 auto;width:30px;text-align:center;line-height:1.4}
+.help-item h4{font-size:14px;font-weight:700;margin-bottom:2px}
+.help-item p{font-size:13px;color:var(--muted);margin:0;line-height:1.55}
+.help-lead{font-size:13px;color:var(--muted);padding:12px 0 2px}
+.filters{display:flex;gap:10px;flex-wrap:wrap;align-items:end}
+.pill{font-size:12px;padding:4px 10px;background:var(--bg);border-radius:20px;color:var(--muted);font-weight:600}
+@media print{
+  :root,:root[data-theme="dark"]{
+    --bg:#fff; --panel:#fff; --field-bg:#fff; --ink:#111; --muted:#555; --line:#ccc;
+    --income:#047857; --income-bg:#ecfdf5; --expense:#b91c1c; --expense-bg:#fef2f2;
+    --transfer:#6d28d9; --transfer-bg:#f5f3ff; color-scheme:light;
+  }
+  header,nav,.no-print{display:none!important}
+  body{background:#fff;color:#111}
+  .panel,.card{box-shadow:none;border:1px solid #ccc}
+  main{max-width:none;padding:0}
+}
+.hint{font-size:12px;color:var(--muted);margin-top:6px}
+.row-actions{display:flex;gap:6px}
+.icon-btn{background:none;border:none;cursor:pointer;color:var(--muted);font-size:14px;padding:4px}
+.icon-btn:hover{color:var(--brand)}
+.icon-btn.del:hover{color:var(--expense)}
+.report-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;border-bottom:2px solid var(--ink);padding-bottom:16px}
+.report-head h2{font-size:22px}
+.report-head .org{font-size:15px;font-weight:700;margin-bottom:4px}
+.report-head .period{color:var(--muted);margin-top:4px}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+@media(max-width:700px){.two-col{grid-template-columns:1fr}.ctx select{min-width:0}}
+@media(max-width:640px){
+  header{padding:10px 14px;gap:10px}
+  header h1{order:0;flex:1 1 auto;font-size:16px}
+  .hdr-actions{order:1}
+  .ctx{order:2;width:100%;flex-wrap:wrap;gap:8px}
+  .ctx .ctxgroup{flex:1 1 28%;min-width:92px}
+  .ctx select,.ctx select#orgSelect{min-width:0;width:100%}
+  nav{order:3;width:100%;margin-left:0;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;
+    gap:2px;padding-bottom:2px;scrollbar-width:none}
+  nav::-webkit-scrollbar{display:none}
+  nav button{padding:8px 12px;font-size:13px;white-space:nowrap;flex:0 0 auto}
+  main{padding:16px 12px}
+  .panel{padding:14px}
+  h2.section{font-size:15px}
+  .cards{gap:10px}
+  .card{padding:14px}
+  .card .value{font-size:20px}
+  /* iOSでのフォーカス時ズームを防ぐ（16px以上） */
+  input,select,textarea{font-size:16px}
+  .seg button{padding:8px 14px}
+  .icon-btn{padding:7px;font-size:15px}
+  .toolbar{gap:8px}
+  .filters{gap:8px}
+  .report-head{flex-direction:column;gap:8px}
+  .report-head h2{font-size:19px}
+  #reportOutput{overflow-x:auto}
+  .report-table{font-size:12px}
+  .report-table th,.report-table td{padding:8px 7px}
+  .acct-list{grid-template-columns:1fr}
+}
+.org-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
+.org-row .badge{background:var(--brand);color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px}
+.org-row .oname{font-weight:700;flex:1}
+</style>
+<script>
+/* テーマを描画前に適用（ちらつき防止） */
+(function(){
+  try{
+    var t=localStorage.getItem('kaikei_theme');
+    if(!t)t=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';
+    document.documentElement.setAttribute('data-theme',t);
+  }catch(e){document.documentElement.setAttribute('data-theme','light');}
+})();
+</script>
+</head>
+<body>
+<header>
+  <h1><span class="logo">¥</span>会計管理</h1>
+  <div class="ctx">
+    <div class="ctxgroup">
+      <label>団体</label>
+      <select id="orgSelect" title="団体を切り替え"></select>
+    </div>
+    <div class="ctxgroup">
+      <label>会計年度</label>
+      <select id="fySelect" title="会計年度を切り替え"></select>
+    </div>
+    <div class="ctxgroup">
+      <label>帳簿</label>
+      <select id="bookSelect" title="帳簿を切り替え"></select>
+    </div>
+  </div>
+  <nav>
+    <button data-view="dashboard" class="active">ダッシュボード</button>
+    <button data-view="transactions">取引</button>
+    <button data-view="accounts">口座</button>
+    <button data-view="report">決算報告書</button>
+    <button data-view="settings">設定</button>
+  </nav>
+  <div class="hdr-actions">
+    <button id="helpBtn" class="theme-btn" title="操作説明を表示" aria-label="操作説明">❓</button>
+    <button id="themeToggle" class="theme-btn" title="ダークモード切替" aria-label="テーマ切替">🌙</button>
+  </div>
+</header>
+
+<main>
+  <!-- DASHBOARD -->
+  <section id="dashboard" class="view active">
+    <h2 class="section">ダッシュボード</h2>
+    <p class="section-sub" id="dashSub"></p>
+    <div class="cards" id="dashCards"></div>
+    <div class="two-col">
+      <div class="panel">
+        <h3>口座残高（繰越→年度末）</h3>
+        <div id="dashAccounts"></div>
+      </div>
+      <div class="panel">
+        <h3>科目別支出（円グラフ）</h3>
+        <div id="dashCategories"></div>
+      </div>
+    </div>
+    <div class="panel">
+      <h3>最近の取引 <button class="btn sm ghost" onclick="showView('transactions')">すべて表示</button></h3>
+      <div style="overflow-x:auto"><table id="dashRecent"></table></div>
+    </div>
+  </section>
+
+  <!-- TRANSACTIONS -->
+  <section id="transactions" class="view">
+    <h2 class="section">取引管理</h2>
+    <p class="section-sub" id="txSub"></p>
+    <div class="panel">
+      <h3 id="txFormTitle">取引を登録</h3>
+      <div class="seg" style="margin-bottom:14px" id="txTypeSeg">
+        <button data-type="income">収入</button>
+        <button data-type="expense">支出</button>
+        <button data-type="transfer">振替</button>
+      </div>
+      <form id="txForm" class="grid-form">
+        <label class="field">帳簿
+          <select id="txBook"></select>
+        </label>
+        <label class="field">日付
+          <input type="date" id="txDate" required>
+        </label>
+        <label class="field" id="txCatWrap">カテゴリ
+          <select id="txCategory"></select>
+          <input type="text" id="txNewCategory" placeholder="新しいカテゴリ名" style="display:none;margin-top:6px">
+        </label>
+        <label class="field" id="txAcctWrap">口座
+          <select id="txAccount" required></select>
+        </label>
+        <label class="field" id="txToAcctWrap" style="display:none">振替先口座
+          <select id="txToAccount"></select>
+        </label>
+        <label class="field">金額（円）
+          <input type="number" id="txAmount" min="0" step="1" placeholder="0" required>
+        </label>
+        <label class="field">メモ
+          <input type="text" id="txMemo" placeholder="任意">
+        </label>
+        <div style="display:flex;gap:8px">
+          <button type="submit" class="btn" id="txSubmit">登録</button>
+          <button type="button" class="btn ghost" id="txCancel" style="display:none">取消</button>
+        </div>
+      </form>
+      <input type="hidden" id="txEditId">
+    </div>
+
+    <div class="panel">
+      <div class="filters no-print">
+        <label class="field">期間（開始）<input type="date" id="fltFrom"></label>
+        <label class="field">期間（終了）<input type="date" id="fltTo"></label>
+        <label class="field">区分
+          <select id="fltType"><option value="">すべて</option><option value="income">収入</option><option value="expense">支出</option><option value="transfer">振替</option></select>
+        </label>
+        <label class="field">口座<select id="fltAccount"><option value="">すべて</option></select></label>
+        <label class="field">検索<input type="text" id="fltSearch" placeholder="カテゴリ・メモ"></label>
+        <button class="btn ghost sm" onclick="resetToFY()">年度で絞る</button>
+        <button class="btn ghost sm" onclick="clearFilters()">全期間</button>
+        <span class="spacer" style="margin-left:auto"></span>
+        <button class="btn ghost sm" onclick="exportCSV()">CSV出力</button>
+      </div>
+      <div style="overflow-x:auto"><table id="txTable"></table></div>
+    </div>
+  </section>
+
+  <!-- ACCOUNTS -->
+  <section id="accounts" class="view">
+    <h2 class="section">口座管理</h2>
+    <p class="section-sub" id="acctSub"></p>
+    <div class="panel">
+      <h3 id="acctFormTitle">口座を追加</h3>
+      <form id="acctForm" class="grid-form">
+        <label class="field">帳簿<select id="acctBook"></select></label>
+        <label class="field">口座名<input type="text" id="acctName" placeholder="例：みずほ銀行" required></label>
+        <label class="field">種別
+          <select id="acctType">
+            <option value="cash">現金</option>
+            <option value="bank">銀行口座</option>
+            <option value="time">定期預金</option>
+            <option value="other">その他</option>
+          </select>
+        </label>
+        <label class="field">期首残高（円）<input type="number" id="acctInit" step="1" value="0"></label>
+        <div style="display:flex;gap:8px">
+          <button type="submit" class="btn" id="acctSubmit">追加</button>
+          <button type="button" class="btn ghost" id="acctCancel" style="display:none">取消</button>
+        </div>
+      </form>
+      <input type="hidden" id="acctEditId">
+      <p class="hint">期首残高は口座の開始時点の残高です。取引を登録すると自動で残高が増減します。各口座カードの ✎ で編集できます。</p>
+    </div>
+    <div class="acct-list" id="acctList"></div>
+  </section>
+
+  <!-- REPORT -->
+  <section id="report" class="view">
+    <h2 class="section">報告書の作成</h2>
+    <p class="section-sub" id="repSub"></p>
+    <div class="panel no-print">
+      <div class="filters">
+        <label class="field">種類
+          <select id="repType">
+            <option value="statement">収支決算報告書</option>
+            <option value="cashbook">出納帳（明細）</option>
+          </select>
+        </label>
+        <label class="field">対象期間（開始）<input type="date" id="repFrom"></label>
+        <label class="field">対象期間（終了）<input type="date" id="repTo"></label>
+        <label class="field">帳簿
+          <select id="repBook"></select>
+        </label>
+        <label class="field">定期預金
+          <select id="repTime">
+            <option value="include">含める</option>
+            <option value="exclude">含めない</option>
+          </select>
+        </label>
+        <label class="field">プリセット
+          <select id="repPreset">
+            <option value="">選択…</option>
+            <option value="thisFY">選択中の年度</option>
+            <option value="lastFY">前年度</option>
+            <option value="thisMonth">今月</option>
+            <option value="lastMonth">先月</option>
+          </select>
+        </label>
+        <button class="btn" onclick="buildReport()">作成</button>
+        <button class="btn ghost" onclick="exportReportExcel()">Excel出力</button>
+        <button class="btn ghost" onclick="window.print()">印刷 / PDF保存</button>
+      </div>
+      <div class="filters" id="repSections" style="margin-top:12px;border-top:1px solid var(--line);padding-top:12px;gap:16px">
+        <span class="muted" style="font-weight:700;align-self:center">含めるセクション（決算報告書）</span>
+        <label class="chk"><input type="checkbox" id="secSummary">サマリー</label>
+        <label class="chk"><input type="checkbox" id="secBalanceCalc">収支計算（繰越）</label>
+        <label class="chk"><input type="checkbox" id="secCategories" checked>収入・支出の部</label>
+        <label class="chk"><input type="checkbox" id="secChart">円グラフ</label>
+        <label class="chk"><input type="checkbox" id="secAccounts" checked>口座別残高</label>
+        <label class="chk"><input type="checkbox" id="secSign" checked>署名・監査欄</label>
+      </div>
+    </div>
+    <div class="panel" id="reportOutput"><p class="empty">期間を選んで「作成」を押してください。</p></div>
+  </section>
+
+  <!-- SETTINGS -->
+  <section id="settings" class="view">
+    <h2 class="section">設定</h2>
+
+    <div class="panel">
+      <h3>団体（組織）管理</h3>
+      <p class="hint" style="margin-bottom:12px">団体ごとに口座・取引・カテゴリ・会計年度を独立して管理できます。ヘッダーのプルダウンで切り替えます。</p>
+      <div class="toolbar">
+        <input type="text" id="newOrgName" placeholder="新しい団体名（例：○○自治会）">
+        <label class="field" style="min-width:150px">期首月
+          <select id="newOrgFY"></select>
+        </label>
+        <button class="btn sm" onclick="addOrg()">団体を追加</button>
+      </div>
+      <div id="orgList"></div>
+    </div>
+
+    <div class="panel">
+      <h3>会計年度設定（現在の団体）</h3>
+      <div class="grid-form">
+        <label class="field">団体名
+          <input type="text" id="curOrgName">
+        </label>
+        <label class="field">期首月（会計年度の開始月）
+          <select id="curOrgFY"></select>
+        </label>
+        <div><button class="btn" onclick="saveOrgSettings()">保存</button></div>
+      </div>
+      <p class="hint" id="fyExample"></p>
+    </div>
+
+    <div class="panel">
+      <h3>帳簿名の設定（現在の団体）</h3>
+      <p class="hint" style="margin-bottom:12px">この団体では年度ごとに2つの帳簿を管理できます（例：一般会計・特別会計）。帳簿名は自由に変更できます。</p>
+      <div class="grid-form">
+        <label class="field">帳簿1の名称
+          <input type="text" id="curBook1" placeholder="帳簿1">
+        </label>
+        <label class="field">帳簿2の名称
+          <input type="text" id="curBook2" placeholder="帳簿2">
+        </label>
+        <div><button class="btn" onclick="saveBookNames()">保存</button></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>報告書の署名・監査設定（現在の団体）</h3>
+      <p class="hint" style="margin-bottom:12px">決算報告書・出納帳の末尾に表示する監査人名と、監査確認の定型文を設定します。氏名を空欄にすると、署名・押印用の空欄で出力されます。</p>
+      <div class="grid-form">
+        <label class="field">監査人①（氏名）
+          <input type="text" id="curAuditor1" placeholder="例：山田 太郎">
+        </label>
+        <label class="field">監査人②（氏名・任意）
+          <input type="text" id="curAuditor2" placeholder="（任意）">
+        </label>
+      </div>
+      <label class="field" style="margin-top:12px">監査確認の文言
+        <textarea id="curAuditText" rows="2" style="resize:vertical"></textarea>
+      </label>
+      <div style="margin-top:12px"><button class="btn" onclick="saveReportSettings()">保存</button></div>
+    </div>
+
+    <div class="panel">
+      <h3>データ管理・バックアップ / 引き継ぎ</h3>
+      <p class="hint" style="margin-bottom:14px">データはこのブラウザ内（localStorage）に保存されます。JSONファイルに書き出せば、<b>他の端末への移行</b>や<b>次の担当者への引き継ぎ</b>ができます。書き出したファイルを別端末の「読み込み」で取り込んでください。</p>
+
+      <p class="muted" style="font-weight:700;margin:4px 0 6px">■ 全データ（全団体＋表示設定）</p>
+      <div class="toolbar">
+        <button class="btn ghost" onclick="exportJSON()">💾 全データをバックアップ</button>
+        <label class="btn ghost" style="cursor:pointer">📂 ファイルを読み込み<input type="file" id="importFile" accept=".json,application/json" style="display:none"></label>
+        <button class="btn danger" onclick="resetAll()">全データ削除</button>
+      </div>
+      <p class="hint" style="margin-bottom:14px">「読み込み」は<b>全データバックアップ</b>なら上書き復元、<b>団体単位ファイル</b>なら現在のデータに追加します（自動判別）。</p>
+
+      <p class="muted" style="font-weight:700;margin:12px 0 6px">■ 団体（帳簿）単位の引き継ぎ</p>
+      <div class="toolbar">
+        <button class="btn ghost" onclick="exportOrg(db.currentOrgId)">📤 現在の団体を書き出し</button>
+      </div>
+      <p class="hint">特定の団体だけを渡したいときに使います。各団体の「書き出し」ボタン（上の団体一覧）からも個別に保存できます。読み込むと<b>新しい団体として追加</b>され、既存データはそのまま残ります。</p>
+    </div>
+
+    <div class="panel">
+      <h3>カテゴリ管理（現在の団体）</h3>
+      <div class="two-col">
+        <div>
+          <p class="muted" style="font-weight:700;margin-bottom:8px">収入カテゴリ</p>
+          <div class="toolbar"><input type="text" id="newIncomeCat" placeholder="カテゴリ名"><button class="btn sm" onclick="addCat('income')">追加</button></div>
+          <div id="incomeCatList"></div>
+        </div>
+        <div>
+          <p class="muted" style="font-weight:700;margin-bottom:8px">支出カテゴリ</p>
+          <div class="toolbar"><input type="text" id="newExpenseCat" placeholder="カテゴリ名"><button class="btn sm" onclick="addCat('expense')">追加</button></div>
+          <div id="expenseCatList"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- HELP MODAL -->
+<div id="helpModal" class="modal-overlay no-print" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+    <div class="modal-head">
+      <h3 id="helpTitle">📖 かんたん操作ガイド</h3>
+      <button class="modal-close" onclick="closeHelp()" aria-label="閉じる">×</button>
+    </div>
+    <div class="modal-body">
+      <p class="help-lead">このアプリは、団体（組織）ごとに口座・取引・帳簿・決算報告を管理できる会計ツールです。基本の使い方は次のとおりです。</p>
+      <div class="help-item"><div class="help-ico">🔄</div><div>
+        <h4>切替（団体・年度・帳簿）</h4>
+        <p>画面上部のプルダウンで、団体／会計年度／帳簿（帳簿1・帳簿2・合計）を切り替えます。表示中のデータはすべて選択内容に連動します。</p>
+      </div></div>
+      <div class="help-item"><div class="help-ico">➕</div><div>
+        <h4>取引の登録（取引タブ）</h4>
+        <p>「収入・支出・振替」を選び、帳簿・日付・カテゴリ・金額などを入力して登録します。一覧の ✎ で編集、🗑 で削除できます。</p>
+      </div></div>
+      <div class="help-item"><div class="help-ico">🏦</div><div>
+        <h4>口座の管理（口座タブ）</h4>
+        <p>現金・銀行口座などを帳簿ごとに追加します。期首残高を設定すると、以降の残高は取引から自動で計算されます。</p>
+      </div></div>
+      <div class="help-item"><div class="help-ico">📊</div><div>
+        <h4>ダッシュボード</h4>
+        <p>収入・支出・収支のサマリーと、「科目別支出の円グラフ」でお金の流れをひと目で確認できます。</p>
+      </div></div>
+      <div class="help-item"><div class="help-ico">📄</div><div>
+        <h4>決算報告書（決算報告書タブ）</h4>
+        <p>対象期間と帳簿（帳簿1のみ／帳簿1・2合計 など）を選んで「作成」。「印刷／PDF保存」のほか、「Excel出力」で後から修正できる .xlsx ファイルを保存できます。</p>
+      </div></div>
+      <div class="help-item"><div class="help-ico">💾</div><div>
+        <h4>バックアップ・引き継ぎ（設定タブ）</h4>
+        <p>全データや団体単位でファイルに書き出し／読み込みができます。別の端末への移行や、次の担当者への引き継ぎに使えます。</p>
+      </div></div>
+      <div class="help-item"><div class="help-ico">👆</div><div>
+        <h4>スワイプで画面切替（スマホ）</h4>
+        <p>スマホでは画面を左右にスワイプすると、ダッシュボード → 取引 → 口座 → 決算報告書 → 設定 の順に画面を切り替えられます。</p>
+      </div></div>
+      <div class="help-item"><div class="help-ico">🌙</div><div>
+        <h4>ダークモード</h4>
+        <p>右上の 🌙／☀️ ボタンで画面の明るさを切り替えます。設定は自動で保存され、次回も引き継がれます。</p>
+      </div></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" onclick="closeHelp()">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============ データ層 ============ */
+const KEY='kaikei_app_v2';
+const KEY_V1='kaikei_app_v1';
+const DEFAULT_CATS={
+  income:['売上','会費','寄付金','補助金','受取利息','雑収入'],
+  expense:['仕入','家賃','水道光熱費','通信費','消耗品費','交通費','会議費','接待交際費','給料','税金','雑費']
+};
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
+function defaultAccounts(){return[
+  {id:uid(),name:'現金',type:'cash',init:0,book:1},
+  {id:uid(),name:'普通預金',type:'bank',init:0,book:1}
+];}
+const DEFAULT_BOOK_NAMES=['帳簿1','帳簿2'];
+const DEFAULT_AUDIT_TEXT='会計帳簿及び証憑書類を監査した結果、上記のとおり会計処理が適正に行われ、記載内容に相違ないことを認めます。';
+function defaultReportSettings(){return {auditors:['',''],auditText:DEFAULT_AUDIT_TEXT};}
+function newOrg(name,fyStartMonth){
+  return {id:uid(),name:name||'新しい団体',fyStartMonth:fyStartMonth||4,
+    bookNames:DEFAULT_BOOK_NAMES.slice(),report:defaultReportSettings(),
+    accounts:defaultAccounts(),transactions:[],categories:JSON.parse(JSON.stringify(DEFAULT_CATS))};
+}
+/* 既存データに帳簿・報告書設定を補完（後方互換） */
+function migrateOrg(o){
+  if(!Array.isArray(o.bookNames)||o.bookNames.length<2)o.bookNames=DEFAULT_BOOK_NAMES.slice();
+  (o.accounts||[]).forEach(a=>{if(a.book!==1&&a.book!==2)a.book=1;});
+  (o.transactions||[]).forEach(t=>{if(t.book!==1&&t.book!==2)t.book=1;});
+  if(!o.report||typeof o.report!=='object')o.report=defaultReportSettings();
+  if(!Array.isArray(o.report.auditors))o.report.auditors=['',''];
+  while(o.report.auditors.length<2)o.report.auditors.push('');
+  if(typeof o.report.auditText!=='string')o.report.auditText=DEFAULT_AUDIT_TEXT;
+  return o;
+}
+function migrateDb(d){if(d&&d.orgs)d.orgs.forEach(migrateOrg);return d;}
+function freshDb(){const o=newOrg('団体1',4);return {orgs:[o],currentOrgId:o.id};}
+
+function load(){
+  try{
+    const raw=localStorage.getItem(KEY);
+    if(raw){const d=JSON.parse(raw);if(d&&d.orgs&&d.orgs.length)return migrateDb(d);}
+    const old=localStorage.getItem(KEY_V1);
+    if(old){
+      const o=JSON.parse(old);
+      const org=newOrg('団体1',4);
+      if(o.accounts)org.accounts=o.accounts;
+      if(o.transactions)org.transactions=o.transactions;
+      if(o.categories)org.categories=o.categories;
+      migrateOrg(org);
+      return {orgs:[org],currentOrgId:org.id};
+    }
+  }catch(e){}
+  return freshDb();
+}
+let db=load();
+function save(){localStorage.setItem(KEY,JSON.stringify(db));}
+
+/* 現在の団体 */
+function org(){return db.orgs.find(o=>o.id===db.currentOrgId)||db.orgs[0];}
+
+/* ============ 帳簿ロジック ============ */
+let currentBook=1; // 選択中の帳簿：1 / 2 / 'all'（帳簿1・2合計）
+function bookNames(){const b=org().bookNames;return (Array.isArray(b)&&b.length>=2)?b:DEFAULT_BOOK_NAMES;}
+function bookName(n){return bookNames()[n-1]||('帳簿'+n);}
+function bookLabel(book){return book==='all'?`${bookName(1)}・${bookName(2)}合計`:bookName(book);}
+/* 取引・口座が指定帳簿に属するか（'all'/未指定は全件） */
+function inBook(item,book){return book==='all'||book==null?true:(item.book||1)===book;}
+function accountsOfBook(book){return org().accounts.filter(a=>inBook(a,book));}
+/* 報告書用：定期預金を含める/含めないで口座を絞り込む */
+function accountsForReport(book,includeTime){return accountsOfBook(book).filter(a=>includeTime||a.type!=='time');}
+
+/* ============ 会計年度ロジック ============ */
+let currentFY; // 選択中の会計年度（開始年）
+const pad=n=>String(n).padStart(2,'0');
+function fyRange(fyYear,startMonth){
+  const from=`${fyYear}-${pad(startMonth)}-01`;
+  const end=new Date(fyYear+1,startMonth-1,0); // 翌年 開始月の前月末日
+  const to=`${end.getFullYear()}-${pad(end.getMonth()+1)}-${pad(end.getDate())}`;
+  return {from,to};
+}
+function fyOfDate(dateStr,startMonth){
+  const y=+dateStr.slice(0,4),m=+dateStr.slice(5,7);
+  return m>=startMonth?y:y-1;
+}
+function fyLabel(fyYear){
+  const sm=org().fyStartMonth;
+  return sm===1?`${fyYear}年`:`${fyYear}年度`;
+}
+function currentCalendarFY(){
+  const d=new Date();
+  const ds=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+  return fyOfDate(ds,org().fyStartMonth);
+}
+
+/* ============ ユーティリティ ============ */
+const yen=n=>'¥'+Math.round(n).toLocaleString('ja-JP');
+const todayStr=()=>{const d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());};
+/* 指定日の前日（YYYY-MM-DD）。年度期首の「前日＝前年度末」の残高算出に使う */
+const dayBefore=ds=>{const dt=new Date(ds);dt.setDate(dt.getDate()-1);return `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}`;};
+const acctById=id=>org().accounts.find(a=>a.id===id);
+function accountBalance(id,upto){
+  const a=acctById(id); if(!a)return 0;
+  let bal=a.init;
+  for(const t of org().transactions){
+    if(upto&&t.date>upto)continue;
+    if(t.type==='income'&&t.account===id) bal+=t.amount;
+    else if(t.type==='expense'&&t.account===id) bal-=t.amount;
+    else if(t.type==='transfer'){
+      if(t.account===id) bal-=t.amount;
+      if(t.toAccount===id) bal+=t.amount;
+    }
+  }
+  return bal;
+}
+function totalAssets(upto,book){return accountsOfBook(book).reduce((s,a)=>s+accountBalance(a.id,upto),0);}
+
+/* ============ 団体・年度セレクタ ============ */
+function buildOrgSelect(){
+  document.getElementById('orgSelect').innerHTML=db.orgs.map(o=>
+    `<option value="${o.id}"${o.id===db.currentOrgId?' selected':''}>${esc(o.name)}</option>`).join('');
+}
+function buildFYSelect(){
+  const sm=org().fyStartMonth;
+  const years=new Set();
+  years.add(currentCalendarFY());
+  for(const t of org().transactions)years.add(fyOfDate(t.date,sm));
+  if(currentFY!=null)years.add(currentFY);
+  const list=[...years].sort((a,b)=>b-a);
+  if(currentFY==null||!years.has(currentFY))currentFY=currentCalendarFY();
+  const sel=document.getElementById('fySelect');
+  sel.innerHTML=list.map(y=>{
+    const {from,to}=fyRange(y,sm);
+    return `<option value="${y}"${y===currentFY?' selected':''}>${fyLabel(y)}（${from.slice(0,7).replace('-','/')}〜${to.slice(0,7).replace('-','/')}）</option>`;
+  }).join('');
+}
+function buildBookSelect(){
+  const sel=document.getElementById('bookSelect');
+  sel.innerHTML=[1,2,'all'].map(v=>
+    `<option value="${v}"${v===currentBook?' selected':''}>${esc(bookLabel(v))}</option>`).join('');
+}
+document.getElementById('orgSelect').onchange=function(){
+  db.currentOrgId=this.value;save();
+  currentFY=null; // 団体切替時は年度を再判定
+  currentBook=1;  // 団体切替時は帳簿1へ
+  buildFYSelect();buildBookSelect();fillAccountSelects();
+  document.getElementById('txEditId').value='';resetTxForm();
+  refreshActive();buildOrgSelect();
+};
+document.getElementById('bookSelect').onchange=function(){
+  currentBook=this.value==='all'?'all':+this.value;
+  fillAccountSelects();resetTxForm();refreshActive();
+};
+document.getElementById('fySelect').onchange=function(){
+  currentFY=+this.value;
+  const {from,to}=fyRange(currentFY,org().fyStartMonth);
+  document.getElementById('fltFrom').value=from;
+  document.getElementById('fltTo').value=to;
+  refreshActive();
+};
+function refreshActive(){
+  const v=document.querySelector('.view.active').id;
+  if(v==='dashboard')renderDashboard();
+  else if(v==='transactions')renderTx();
+  else if(v==='accounts')renderAccounts();
+  else if(v==='report')syncReportDefaults();
+  else if(v==='settings')renderSettings();
+}
+
+/* ============ ナビ ============ */
+function showView(v){
+  document.querySelectorAll('.view').forEach(el=>el.classList.toggle('active',el.id===v));
+  document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===v));
+  if(v==='dashboard')renderDashboard();
+  if(v==='transactions')renderTx();
+  if(v==='accounts')renderAccounts();
+  if(v==='report')syncReportDefaults();
+  if(v==='settings')renderSettings();
+  window.scrollTo(0,0);
+}
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>showView(b.dataset.view));
+
+/* ============ テーマ（ダークモード） ============ */
+function currentTheme(){return document.documentElement.getAttribute('data-theme')==='dark'?'dark':'light';}
+function syncThemeIcon(){
+  const dark=currentTheme()==='dark';
+  const btn=document.getElementById('themeToggle');
+  btn.textContent=dark?'☀️':'🌙';
+  btn.title=dark?'ライトモードに切替':'ダークモードに切替';
+}
+function toggleTheme(){
+  const next=currentTheme()==='dark'?'light':'dark';
+  document.documentElement.setAttribute('data-theme',next);
+  try{localStorage.setItem('kaikei_theme',next);}catch(e){}
+  syncThemeIcon();
+}
+document.getElementById('themeToggle').onclick=toggleTheme;
+syncThemeIcon();
+
+/* ============ 操作ガイド（ヘルプ） ============ */
+function openHelp(){document.getElementById('helpModal').hidden=false;}
+function closeHelp(){document.getElementById('helpModal').hidden=true;}
+document.getElementById('helpBtn').onclick=openHelp;
+document.getElementById('helpModal').addEventListener('click',e=>{if(e.target.id==='helpModal')closeHelp();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeHelp();});
+
+/* ============ スワイプで画面切替（スマホ） ============ */
+(function(){
+  const ORDER=['dashboard','transactions','accounts','report','settings'];
+  /* 横スクロールできる要素（テーブル・ナビ等）上での操作はスワイプ切替の対象外 */
+  function inHScroll(el){
+    while(el&&el!==document.body&&el.nodeType===1){
+      if(el.scrollWidth>el.clientWidth+2){
+        const ox=getComputedStyle(el).overflowX;
+        if(ox==='auto'||ox==='scroll')return true;
+      }
+      el=el.parentElement;
+    }
+    return false;
+  }
+  let sx=0,sy=0,st=0,tracking=false;
+  const area=document.querySelector('main');
+  area.addEventListener('touchstart',e=>{
+    if(e.touches.length!==1){tracking=false;return;}
+    if(!document.getElementById('helpModal').hidden){tracking=false;return;}
+    if(inHScroll(e.target)){tracking=false;return;}
+    const t=e.touches[0];sx=t.clientX;sy=t.clientY;st=Date.now();tracking=true;
+  },{passive:true});
+  area.addEventListener('touchend',e=>{
+    if(!tracking)return;tracking=false;
+    const t=e.changedTouches[0];
+    const dx=t.clientX-sx,dy=t.clientY-sy,dt=Date.now()-st;
+    if(dt>700)return;                       // ゆっくりした操作は無視
+    if(Math.abs(dx)<60)return;              // 距離が短い
+    if(Math.abs(dx)<Math.abs(dy)*2)return;  // 縦成分が大きい（スクロール）
+    const cur=document.querySelector('.view.active');
+    const i=cur?ORDER.indexOf(cur.id):-1;
+    if(i<0)return;
+    if(dx<0&&i<ORDER.length-1)showView(ORDER[i+1]);      // 左スワイプ→次へ
+    else if(dx>0&&i>0)showView(ORDER[i-1]);              // 右スワイプ→前へ
+  },{passive:true});
+})();
+
+/* ============ 取引フォーム ============ */
+let txType='expense';
+function setTxType(t){
+  txType=t;
+  document.querySelectorAll('#txTypeSeg button').forEach(b=>{
+    b.className = b.dataset.type===t ? 'on-'+t : '';
+  });
+  const transfer=t==='transfer';
+  document.getElementById('txCatWrap').style.display=transfer?'none':'flex';
+  document.getElementById('txToAcctWrap').style.display=transfer?'flex':'none';
+  document.getElementById('txAcctWrap').childNodes[0].nodeValue=transfer?'振替元口座':'口座';
+  refreshCatList();
+}
+document.querySelectorAll('#txTypeSeg button').forEach(b=>b.onclick=()=>setTxType(b.dataset.type));
+
+function refreshCatList(){
+  const sel=document.getElementById('txCategory');
+  const cats=txType==='income'?org().categories.income:org().categories.expense;
+  const editing=!!document.getElementById('txEditId').value;
+  const prev=sel.value;
+  sel.innerHTML=(cats||[]).map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('')
+    +'<option value="__new__">＋ 新しいカテゴリを追加…</option>';
+  const has=v=>[...sel.options].some(o=>o.value===v);
+  // 取引を編集中で、その取引の元カテゴリが一覧に無い場合のみ保持する
+  // （通常のカテゴリ削除では、削除したカテゴリを復活させない）
+  if(editing&&prev&&prev!=='__new__'&&!has(prev))
+    sel.insertAdjacentHTML('afterbegin',`<option value="${esc(prev)}">${esc(prev)}</option>`);
+  if(prev&&has(prev))sel.value=prev;
+  toggleNewCat();
+}
+function toggleNewCat(){
+  const sel=document.getElementById('txCategory');
+  const inp=document.getElementById('txNewCategory');
+  const isNew=sel.value==='__new__';
+  inp.style.display=isNew?'block':'none';
+  if(!isNew)inp.value='';
+}
+document.getElementById('txCategory').onchange=function(){
+  toggleNewCat();
+  if(this.value==='__new__')document.getElementById('txNewCategory').focus();
+};
+/* 取引フォームの帳簿セレクト（1/2）を構築 */
+function buildTxBookSelect(){
+  const sel=document.getElementById('txBook');
+  const prev=sel.value;
+  sel.innerHTML=[1,2].map(n=>`<option value="${n}">${esc(bookName(n))}</option>`).join('');
+  const def=currentBook==='all'?'1':String(currentBook);
+  sel.value=(prev==='1'||prev==='2')?prev:def;
+}
+/* フォームで選択中の帳簿 */
+function formBook(){const v=document.getElementById('txBook').value;return v==='2'?2:1;}
+function fillAccountSelects(){
+  const acctOpt=a=>`<option value="${a.id}">${esc(a.name)}</option>`;
+  const formOpts=accountsOfBook(formBook()).map(acctOpt).join('');
+  document.getElementById('txAccount').innerHTML=formOpts;
+  document.getElementById('txToAccount').innerHTML=formOpts;
+  const fltOpts=accountsOfBook(currentBook).map(acctOpt).join('');
+  document.getElementById('fltAccount').innerHTML='<option value="">すべて</option>'+fltOpts;
+}
+document.getElementById('txBook').onchange=fillAccountSelects;
+
+document.getElementById('txForm').onsubmit=e=>{
+  e.preventDefault();
+  const amount=Math.round(+document.getElementById('txAmount').value);
+  if(!(amount>0)){alert('金額を正しく入力してください');return;}
+  const account=document.getElementById('txAccount').value;
+  if(!account){alert('この帳簿には口座がありません。先に「口座」画面で口座を追加してください。');return;}
+  const editId=document.getElementById('txEditId').value;
+  const tx={
+    id:editId||uid(),
+    type:txType,
+    book:formBook(),
+    date:document.getElementById('txDate').value,
+    amount,
+    account,
+    memo:document.getElementById('txMemo').value.trim()
+  };
+  if(txType==='transfer'){
+    tx.toAccount=document.getElementById('txToAccount').value;
+    if(tx.account===tx.toAccount){alert('振替元と振替先が同じです');return;}
+    tx.category='振替';
+  }else{
+    const sel=document.getElementById('txCategory');
+    let category;
+    if(sel.value==='__new__'){
+      category=document.getElementById('txNewCategory').value.trim();
+      if(!category){alert('新しいカテゴリ名を入力してください');return;}
+    }else{
+      category=sel.value.trim();
+    }
+    tx.category=category||'未分類';
+    const bucket=txType==='income'?org().categories.income:org().categories.expense;
+    if(tx.category!=='未分類'&&!bucket.includes(tx.category))bucket.push(tx.category);
+  }
+  const list=org().transactions;
+  if(editId){
+    const i=list.findIndex(t=>t.id===editId);
+    list[i]=tx;
+  }else{
+    list.push(tx);
+  }
+  save();
+  resetTxForm();
+  buildFYSelect();
+  renderTx();
+};
+document.getElementById('txCancel').onclick=resetTxForm;
+
+function resetTxForm(){
+  document.getElementById('txForm').reset();
+  document.getElementById('txEditId').value='';
+  buildTxBookSelect();
+  document.getElementById('txBook').value=currentBook==='all'?'1':String(currentBook);
+  fillAccountSelects();
+  document.getElementById('txDate').value=todayStr();
+  document.getElementById('txSubmit').textContent='登録';
+  document.getElementById('txFormTitle').textContent='取引を登録';
+  document.getElementById('txCancel').style.display='none';
+  setTxType(txType);
+}
+function editTx(id){
+  const t=org().transactions.find(x=>x.id===id); if(!t)return;
+  setTxType(t.type);
+  buildTxBookSelect();
+  document.getElementById('txBook').value=String(t.book||1);
+  fillAccountSelects();
+  document.getElementById('txEditId').value=t.id;
+  document.getElementById('txDate').value=t.date;
+  document.getElementById('txAmount').value=t.amount;
+  document.getElementById('txMemo').value=t.memo||'';
+  document.getElementById('txAccount').value=t.account;
+  if(t.type==='transfer')document.getElementById('txToAccount').value=t.toAccount;
+  else{
+    const sel=document.getElementById('txCategory');
+    if(![...sel.options].some(o=>o.value===t.category))
+      sel.insertAdjacentHTML('afterbegin',`<option value="${esc(t.category)}">${esc(t.category)}</option>`);
+    sel.value=t.category;
+    toggleNewCat();
+  }
+  document.getElementById('txSubmit').textContent='更新';
+  document.getElementById('txFormTitle').textContent='取引を編集';
+  document.getElementById('txCancel').style.display='inline-block';
+  showView('transactions');
+  window.scrollTo(0,0);
+}
+function delTx(id){
+  if(!confirm('この取引を削除しますか？'))return;
+  org().transactions=org().transactions.filter(t=>t.id!==id);
+  save();buildFYSelect();renderTx();
+}
+
+/* ============ 取引一覧 ============ */
+function filteredTx(){
+  const from=document.getElementById('fltFrom').value;
+  const to=document.getElementById('fltTo').value;
+  const type=document.getElementById('fltType').value;
+  const acct=document.getElementById('fltAccount').value;
+  const q=document.getElementById('fltSearch').value.trim().toLowerCase();
+  return org().transactions.filter(t=>{
+    if(!inBook(t,currentBook))return false;
+    if(from&&t.date<from)return false;
+    if(to&&t.date>to)return false;
+    if(type&&t.type!==type)return false;
+    if(acct&&t.account!==acct&&t.toAccount!==acct)return false;
+    if(q&&!((t.category||'').toLowerCase().includes(q)||(t.memo||'').toLowerCase().includes(q)))return false;
+    return true;
+  }).sort((a,b)=>b.date<a.date?-1:b.date>a.date?1:0);
+}
+function resetToFY(){
+  const {from,to}=fyRange(currentFY,org().fyStartMonth);
+  document.getElementById('fltFrom').value=from;
+  document.getElementById('fltTo').value=to;
+  document.getElementById('fltType').value='';
+  document.getElementById('fltAccount').value='';
+  document.getElementById('fltSearch').value='';
+  renderTx();
+}
+function clearFilters(){
+  ['fltFrom','fltTo','fltType','fltAccount','fltSearch'].forEach(id=>document.getElementById(id).value='');
+  renderTx();
+}
+['fltFrom','fltTo','fltType','fltAccount','fltSearch'].forEach(id=>{
+  document.getElementById(id).addEventListener('input',renderTx);
+});
+
+function typeTag(t){const m={income:'収入',expense:'支出',transfer:'振替'};return `<span class="tag ${t}">${m[t]}</span>`;}
+
+function renderTx(){
+  refreshCatList();
+  document.getElementById('txSub').textContent=`${org().name}　/　選択中：${fyLabel(currentFY)}　/　${bookLabel(currentBook)}`;
+  const showBook=currentBook==='all';
+  const list=filteredTx();
+  const t=document.getElementById('txTable');
+  if(!list.length){t.innerHTML='<tbody><tr><td class="empty">該当する取引がありません</td></tr></tbody>';return;}
+  let rows=list.map(x=>{
+    const acct=acctById(x.account);
+    let acctCell=esc(acct?acct.name:'—');
+    let amtCell;
+    if(x.type==='income'){amtCell=`<span class="amt-income">+${yen(x.amount)}</span>`;}
+    else if(x.type==='expense'){amtCell=`<span class="amt-expense">-${yen(x.amount)}</span>`;}
+    else{amtCell=`<span class="muted">${yen(x.amount)}</span>`;acctCell=esc((acct?acct.name:'—'))+' → '+esc((acctById(x.toAccount)?.name)||'—');}
+    return `<tr>
+      <td>${x.date}</td>
+      ${showBook?`<td><span class="pill">${esc(bookName(x.book||1))}</span></td>`:''}
+      <td>${typeTag(x.type)}</td>
+      <td>${esc(x.category||'')}</td>
+      <td>${acctCell}</td>
+      <td class="num">${amtCell}</td>
+      <td class="muted">${esc(x.memo||'')}</td>
+      <td class="no-print"><div class="row-actions">
+        <button class="icon-btn" onclick="editTx('${x.id}')" title="編集">✎</button>
+        <button class="icon-btn del" onclick="delTx('${x.id}')" title="削除">🗑</button>
+      </div></td>
+    </tr>`;
+  }).join('');
+  t.innerHTML=`<thead><tr><th>日付</th>${showBook?'<th>帳簿</th>':''}<th>区分</th><th>カテゴリ</th><th>口座</th><th>金額</th><th>メモ</th><th class="no-print"></th></tr></thead><tbody>${rows}</tbody>`;
+}
+
+/* ============ 口座 ============ */
+document.getElementById('acctForm').onsubmit=e=>{
+  e.preventDefault();
+  const name=document.getElementById('acctName').value.trim();
+  if(!name){alert('口座名を入力してください');return;}
+  const type=document.getElementById('acctType').value;
+  const init=Math.round(+document.getElementById('acctInit').value||0);
+  const book=document.getElementById('acctBook').value==='2'?2:1;
+  const editId=document.getElementById('acctEditId').value;
+  if(editId){
+    const a=acctById(editId); if(!a){resetAcctForm();return;}
+    a.name=name; a.type=type; a.init=init;
+    // 帳簿の移動は、この口座を使う取引が無いときだけ許可
+    const used=org().transactions.some(t=>t.account===editId||t.toAccount===editId);
+    if(!used) a.book=book;
+  }else{
+    org().accounts.push({id:uid(),name,type,init,book});
+  }
+  save();
+  resetAcctForm();
+  fillAccountSelects();
+  renderAccounts();
+};
+function resetAcctForm(){
+  document.getElementById('acctForm').reset();
+  document.getElementById('acctEditId').value='';
+  document.getElementById('acctFormTitle').textContent='口座を追加';
+  document.getElementById('acctSubmit').textContent='追加';
+  document.getElementById('acctCancel').style.display='none';
+  document.getElementById('acctBook').disabled=false;
+  buildAcctBookSelect();
+}
+document.getElementById('acctCancel').onclick=resetAcctForm;
+function editAccount(id){
+  const a=acctById(id); if(!a)return;
+  buildAcctBookSelect();
+  document.getElementById('acctEditId').value=id;
+  document.getElementById('acctName').value=a.name;
+  document.getElementById('acctType').value=a.type;
+  document.getElementById('acctInit').value=a.init;
+  document.getElementById('acctBook').value=String(a.book||1);
+  const used=org().transactions.some(t=>t.account===id||t.toAccount===id);
+  document.getElementById('acctBook').disabled=used; // 取引があれば帳簿は変更不可
+  document.getElementById('acctFormTitle').textContent='口座を編集'+(used?'（帳簿は変更不可）':'');
+  document.getElementById('acctSubmit').textContent='更新';
+  document.getElementById('acctCancel').style.display='inline-block';
+  window.scrollTo(0,0);
+}
+function delAccount(id){
+  const a=acctById(id); if(!a)return;
+  if(org().accounts.length<=1){alert('口座は最低1つ必要です。少なくとも1つの口座が必要です。');return;}
+  const relTx=org().transactions.filter(t=>t.account===id||t.toAccount===id);
+  if(relTx.length){
+    if(!confirm(`口座「${a.name}」には関連する取引が ${relTx.length} 件あります。\nこの口座と、関連取引 ${relTx.length} 件を「すべて」削除します。よろしいですか？\n\n※ 名前・種別・期首残高だけを直したい場合は、削除せず ✎（編集）をご利用ください。`))return;
+    if(!confirm('この操作は取り消せません。本当に削除しますか？（関連取引も削除されます）'))return;
+    org().transactions=org().transactions.filter(t=>!(t.account===id||t.toAccount===id));
+  }else{
+    if(!confirm(`口座「${a.name}」を削除しますか？`))return;
+  }
+  if(document.getElementById('acctEditId').value===id)resetAcctForm();
+  org().accounts=org().accounts.filter(x=>x.id!==id);
+  save();
+  buildFYSelect();fillAccountSelects();
+  renderTx();renderAccounts();
+}
+function buildAcctBookSelect(){
+  const sel=document.getElementById('acctBook');
+  const prev=sel.value;
+  sel.innerHTML=[1,2].map(n=>`<option value="${n}">${esc(bookName(n))}</option>`).join('');
+  const def=currentBook==='all'?'1':String(currentBook);
+  sel.value=(prev==='1'||prev==='2')?prev:def;
+}
+function renderAccounts(){
+  buildAcctBookSelect();
+  document.getElementById('acctSub').textContent=`${org().name} の口座　/　${bookLabel(currentBook)}`;
+  const el=document.getElementById('acctList');
+  const typeLabel={cash:'現金',bank:'銀行',time:'定期預金',other:'その他'};
+  const list=accountsOfBook(currentBook);
+  if(!list.length){el.innerHTML='<p class="empty">この帳簿の口座がありません。上のフォームから追加してください。</p>';return;}
+  const showBook=currentBook==='all';
+  el.innerHTML=list.map(a=>{
+    const bal=accountBalance(a.id);
+    return `<div class="acct">
+      <button class="edit" onclick="editAccount('${a.id}')" title="編集">✎</button>
+      <button class="del" onclick="delAccount('${a.id}')" title="削除">×</button>
+      <span class="type ${a.type}">${typeLabel[a.type]}</span>
+      ${showBook?`<span class="pill" style="margin-left:6px">${esc(bookName(a.book||1))}</span>`:''}
+      <div class="name">${esc(a.name)}</div>
+      <div class="bal ${bal<0?'neg':''}">${yen(bal)}</div>
+      <div class="hint">期首残高 ${yen(a.init)}</div>
+    </div>`;
+  }).join('');
+}
+
+/* ============ ダッシュボード ============ */
+/* 円グラフ（科目別支出）用の配色と描画 */
+const CHART_COLORS=['#2563eb','#059669','#f59e0b','#dc2626','#7c3aed','#0ea5e9','#db2777','#65a30d'];
+const CHART_OTHER='#94a3b8';
+function expensePieHTML(entries){
+  // entries: [[category,amount], ...]（金額降順）
+  if(!entries.length)return '<p class="empty">この年度の支出はありません</p>';
+  const total=entries.reduce((s,[,v])=>s+v,0);
+  if(total<=0)return '<p class="empty">この年度の支出はありません</p>';
+  // 多すぎる場合は上位7件＋「その他」にまとめる
+  let disp=entries;
+  if(entries.length>8){
+    const top=entries.slice(0,7);
+    const other=entries.slice(7).reduce((s,[,v])=>s+v,0);
+    disp=top.concat([['その他',other]]);
+  }
+  disp=disp.map(([c,v],i)=>[c,v,c==='その他'?CHART_OTHER:CHART_COLORS[i%CHART_COLORS.length]]);
+  // ドーナツ（円の stroke-dasharray でスライスを描画）
+  const cx=100,cy=100,r=70,sw=36,C=2*Math.PI*r;
+  let acc=0;
+  const slices=disp.map(([c,v,color])=>{
+    const frac=v/total, seg=frac*C;
+    const el=`<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${color}" stroke-width="${sw}"
+      stroke-dasharray="${seg.toFixed(2)} ${(C-seg).toFixed(2)}" stroke-dashoffset="${(-acc*C).toFixed(2)}"
+      transform="rotate(-90 ${cx} ${cy})"><title>${esc(c)}：${yen(v)}（${(frac*100).toFixed(1)}%）</title></circle>`;
+    acc+=frac;
+    return el;
+  }).join('');
+  const totalStr=yen(total);
+  const amtSize=totalStr.length>9?13:totalStr.length>7?15:18;
+  const svg=`<svg class="donut" viewBox="0 0 200 200" role="img" aria-label="科目別支出の円グラフ">
+    ${slices}
+    <text class="donut-sub" x="100" y="92" font-size="11">支出合計</text>
+    <text x="100" y="114" font-size="${amtSize}">${totalStr}</text>
+  </svg>`;
+  const legend='<ul class="legend">'+disp.map(([c,v,color])=>
+    `<li><span class="sw" style="background:${color}"></span>
+      <span class="lg-name">${esc(c)}</span>
+      <span class="lg-val">${yen(v)}・${(v/total*100).toFixed(1)}%</span></li>`).join('')+'</ul>';
+  return `<div class="chart-wrap">${svg}${legend}</div>`;
+}
+function monthRange(d=new Date()){
+  const y=d.getFullYear(),m=d.getMonth();
+  const from=`${y}-${pad(m+1)}-01`;
+  const last=new Date(y,m+1,0).getDate();
+  const to=`${y}-${pad(m+1)}-${pad(last)}`;
+  return {from,to};
+}
+function sumByType(from,to,book){
+  let income=0,expense=0;
+  for(const t of org().transactions){
+    if(!inBook(t,book))continue;
+    if(t.date<from||t.date>to)continue;
+    if(t.type==='income')income+=t.amount;
+    else if(t.type==='expense')expense+=t.amount;
+  }
+  return {income,expense};
+}
+function renderDashboard(){
+  const sm=org().fyStartMonth;
+  const {from,to}=fyRange(currentFY,sm);
+  document.getElementById('dashSub').textContent=`${org().name}　/　${fyLabel(currentFY)}（${from} 〜 ${to}）　/　${bookLabel(currentBook)}`;
+  const f=sumByType(from,to,currentBook);
+  const net=f.income-f.expense;
+  const opening=dayBefore(from);
+  const carryIn=totalAssets(opening,currentBook);   // 前年度からの繰越（期首残高）
+  const carryOut=totalAssets(to,currentBook);        // 次年度への繰越（期末残高）= carryIn + net
+  const cards=[
+    {label:'前年度繰越（期首）',value:yen(carryIn),cls:''},
+    {label:'年度の収入',value:yen(f.income),cls:'income'},
+    {label:'年度の支出',value:yen(f.expense),cls:'expense'},
+    {label:'年度収支',value:(net>=0?'+':'')+yen(net),cls:net>=0?'income':'expense'},
+    {label:'次年度繰越（期末残高）',value:yen(carryOut),cls:''}
+  ];
+  document.getElementById('dashCards').innerHTML=cards.map(c=>
+    `<div class="card ${c.cls}"><div class="label">${c.label}</div><div class="value">${c.value}</div></div>`).join('');
+
+  const dashAccts=accountsOfBook(currentBook);
+  const showBook=currentBook==='all';
+  if(!dashAccts.length){
+    document.getElementById('dashAccounts').innerHTML='<p class="empty">口座がありません</p>';
+  }else{
+    const rowsA=dashAccts.map(a=>{
+      const op=accountBalance(a.id,opening), ed=accountBalance(a.id,to);
+      return `<tr><td>${esc(a.name)}${showBook?` <span class="pill">${esc(bookName(a.book||1))}</span>`:''}</td>
+        <td class="num muted">${yen(op)}</td><td class="num ${ed<0?'amt-expense':''}">${yen(ed)}</td></tr>`;
+    }).join('');
+    document.getElementById('dashAccounts').innerHTML=
+      `<table><thead><tr><th>口座</th><th class="num">繰越（期首）</th><th class="num">期末残高</th></tr></thead>
+        <tbody>${rowsA}</tbody>
+        <tbody><tr class="total-row"><td>合計</td><td class="num muted">${yen(carryIn)}</td><td class="num ${carryOut<0?'amt-expense':''}">${yen(carryOut)}</td></tr></tbody>
+      </table>`;
+  }
+
+  const catMap={};
+  for(const t of org().transactions){
+    if(!inBook(t,currentBook))continue;
+    if(t.type!=='expense'||t.date<from||t.date>to)continue;
+    catMap[t.category]=(catMap[t.category]||0)+t.amount;
+  }
+  const cats=Object.entries(catMap).sort((a,b)=>b[1]-a[1]);
+  document.getElementById('dashCategories').innerHTML=expensePieHTML(cats);
+
+  const recent=org().transactions.filter(t=>inBook(t,currentBook)&&t.date>=from&&t.date<=to).sort((a,b)=>b.date<a.date?-1:1).slice(0,6);
+  const rt=document.getElementById('dashRecent');
+  if(!recent.length){rt.innerHTML='<tbody><tr><td class="empty">この年度の取引がありません</td></tr></tbody>';return;}
+  rt.innerHTML='<thead><tr><th>日付</th><th>区分</th><th>カテゴリ</th><th>金額</th></tr></thead><tbody>'+
+    recent.map(x=>{
+      let a=x.type==='income'?`<span class="amt-income">+${yen(x.amount)}</span>`:x.type==='expense'?`<span class="amt-expense">-${yen(x.amount)}</span>`:`<span class="muted">${yen(x.amount)}</span>`;
+      return `<tr><td>${x.date}</td><td>${typeTag(x.type)}</td><td>${esc(x.category||'')}</td><td class="num">${a}</td></tr>`;
+    }).join('')+'</tbody>';
+}
+
+/* ============ 決算報告書 ============ */
+function buildRepBookSelect(){
+  const sel=document.getElementById('repBook');
+  const prev=sel.value;
+  sel.innerHTML=[
+    `<option value="1">${esc(bookName(1))}のみ</option>`,
+    `<option value="2">${esc(bookName(2))}のみ</option>`,
+    `<option value="all">${esc(bookName(1))}・${esc(bookName(2))}合計</option>`
+  ].join('');
+  const def=currentBook==='all'?'all':String(currentBook);
+  sel.value=(prev==='1'||prev==='2'||prev==='all')?prev:def;
+}
+function syncReportDefaults(){
+  const sm=org().fyStartMonth;
+  const {from,to}=fyRange(currentFY,sm);
+  const rf=document.getElementById('repFrom'),rt=document.getElementById('repTo');
+  if(!rf.value)rf.value=from;
+  if(!rt.value)rt.value=to;
+  buildRepBookSelect();
+  document.getElementById('repSub').textContent=`${org().name}　/　${fyLabel(currentFY)}`;
+}
+document.getElementById('repPreset').onchange=function(){
+  const v=this.value;if(!v)return;
+  const sm=org().fyStartMonth;
+  let from,to;
+  if(v==='thisFY'){({from,to}=fyRange(currentFY,sm));}
+  else if(v==='lastFY'){({from,to}=fyRange(currentFY-1,sm));}
+  else if(v==='thisMonth'){({from,to}=monthRange(new Date()));}
+  else if(v==='lastMonth'){const n=new Date();({from,to}=monthRange(new Date(n.getFullYear(),n.getMonth()-1,1)));}
+  document.getElementById('repFrom').value=from;
+  document.getElementById('repTo').value=to;
+};
+/* 既に報告書を表示中なら、種類・定期預金の切替で即座に作り直す */
+function rebuildIfShown(){
+  const rf=document.getElementById('repFrom').value,rt=document.getElementById('repTo').value;
+  const out=document.getElementById('reportOutput');
+  if(rf&&rt&&!out.querySelector('.empty'))buildReport();
+}
+document.getElementById('repType').onchange=rebuildIfShown;
+document.getElementById('repTime').onchange=rebuildIfShown;
+['secSummary','secBalanceCalc','secCategories','secChart','secAccounts','secSign']
+  .forEach(id=>document.getElementById(id).addEventListener('change',rebuildIfShown));
+
+/* 署名・監査欄のHTML（監査人＋監査確認文＋監査日） */
+function signBlockHTML(){
+  const r=org().report||defaultReportSettings();
+  const shown=(r.auditors||[]).filter(n=>n&&n.trim());
+  const list=shown.length?shown:[''];
+  const rows=list.map(n=>
+    `<div class="sign-line"><span class="sign-role">監査人</span><span class="sign-name">${n?esc(n):'&nbsp;'}</span><span class="sign-seal">印</span></div>`
+  ).join('');
+  const at=(r.auditText||'').trim();
+  return `<div class="sign-block">
+    ${at?`<p class="audit-text">${esc(at)}</p>`:''}
+    <div class="sign-date">監査日：　　　　　年　　月　　日</div>
+    <div class="sign-rows">${rows}</div>
+  </div>`;
+}
+function buildReport(){
+  const from=document.getElementById('repFrom').value;
+  const to=document.getElementById('repTo').value;
+  if(!from||!to){alert('対象期間を指定してください');return;}
+  const repBookVal=document.getElementById('repBook').value;
+  const repBook=repBookVal==='all'?'all':+repBookVal;
+  const includeTime=document.getElementById('repTime').value!=='exclude';
+  if(document.getElementById('repType').value==='cashbook'){buildCashbook(from,to,repBook,includeTime);return;}
+  const repAccts=accountsForReport(repBook,includeTime);
+  const includedIds=new Set(repAccts.map(a=>a.id));
+  const inRange=org().transactions.filter(t=>inBook(t,repBook)&&t.date>=from&&t.date<=to&&includedIds.has(t.account));
+  const incomeMap={},expenseMap={};
+  let incomeTotal=0,expenseTotal=0;
+  for(const t of inRange){
+    if(t.type==='income'){incomeMap[t.category]=(incomeMap[t.category]||0)+t.amount;incomeTotal+=t.amount;}
+    else if(t.type==='expense'){expenseMap[t.category]=(expenseMap[t.category]||0)+t.amount;expenseTotal+=t.amount;}
+  }
+  const net=incomeTotal-expenseTotal;
+  const sortRows=obj=>Object.entries(obj).sort((a,b)=>b[1]-a[1]);
+  const incomeRows=sortRows(incomeMap),expenseRows=sortRows(expenseMap);
+  const pct=(v,tot)=>tot?(v/tot*100).toFixed(1)+'%':'—';
+  const catTable=(rows,total)=>rows.length?
+    rows.map(([c,v])=>`<tr><td>${esc(c)}</td><td class="num">${yen(v)}</td><td class="num muted">${pct(v,total)}</td></tr>`).join('')
+    :'<tr><td colspan="3" class="muted">なし</td></tr>';
+
+  const opening=dayBefore(from);
+  const showRepBook=repBook==='all';
+  const acctRows=repAccts.map(a=>{
+    const open=accountBalance(a.id,opening);
+    const end=accountBalance(a.id,to);
+    const tl={cash:'現金',bank:'銀行',time:'定期',other:'他'}[a.type]||'';
+    return `<tr><td>${esc(a.name)} <span class="muted" style="font-size:11px">${tl}</span>${showRepBook?` <span class="pill">${esc(bookName(a.book||1))}</span>`:''}</td><td class="num">${yen(open)}</td><td class="num">${yen(end)}</td><td class="num ${end-open<0?'amt-expense':''}">${(end-open>=0?'+':'')+yen(end-open)}</td></tr>`;
+  }).join('');
+  const carryIn=repAccts.reduce((s,a)=>s+accountBalance(a.id,opening),0);   // 前年度繰越
+  const carryOut=repAccts.reduce((s,a)=>s+accountBalance(a.id,to),0);        // 次年度繰越（＝期末残高合計）
+  const adjust=carryOut-carryIn-net; // 定期預金除外時などの振替純額（照合用）
+
+  const chk=id=>{const el=document.getElementById(id);return el?el.checked:true;};
+  const P=[];
+  P.push(`
+    <div class="report-head">
+      <div>
+        <div class="org">${esc(org().name)}</div>
+        <h2>収支決算報告書</h2>
+        <div class="period">対象帳簿：${esc(bookLabel(repBook))}　/　定期預金：${includeTime?'含む':'除く'}</div>
+        <div class="period">対象期間：${from} 〜 ${to}</div>
+      </div>
+      <div style="text-align:right" class="muted">作成日：${todayStr()}</div>
+    </div>`);
+
+  if(chk('secSummary'))P.push(`
+    <div class="cards" style="margin-bottom:24px">
+      <div class="card income"><div class="label">収入合計</div><div class="value">${yen(incomeTotal)}</div></div>
+      <div class="card expense"><div class="label">支出合計</div><div class="value">${yen(expenseTotal)}</div></div>
+      <div class="card ${net>=0?'income':'expense'}"><div class="label">当期収支差額</div><div class="value">${(net>=0?'+':'')+yen(net)}</div></div>
+      <div class="card"><div class="label">次年度繰越（期末残高）</div><div class="value">${yen(carryOut)}</div></div>
+    </div>`);
+
+  if(chk('secBalanceCalc'))P.push(`
+    <div style="margin-top:24px">
+      <h3 style="margin-bottom:10px">■ 収支計算</h3>
+      <table class="report-table">
+        <tbody>
+          <tr><td>前年度繰越金</td><td class="num">${yen(carryIn)}</td></tr>
+          <tr><td>収入合計</td><td class="num amt-income">${yen(incomeTotal)}</td></tr>
+          <tr><td>支出合計</td><td class="num amt-expense">${yen(expenseTotal)}</td></tr>
+          <tr><td>当期収支差額（収入 − 支出）</td><td class="num ${net>=0?'amt-income':'amt-expense'}">${(net>=0?'+':'')+yen(net)}</td></tr>
+          ${adjust?`<tr><td>定期預金等への繰入・振替（純額）</td><td class="num">${(adjust>=0?'+':'')+yen(adjust)}</td></tr>`:''}
+          <tr class="total-row" style="font-size:15px"><td>次年度繰越金（期末残高）</td><td class="num">${yen(carryOut)}</td></tr>
+        </tbody>
+      </table>
+      <p class="hint">※ 次年度繰越金は「口座別 期末残高の合計」と一致します。</p>
+    </div>`);
+
+  if(chk('secCategories'))P.push(`
+    <div class="two-col" style="margin-top:24px">
+      <div>
+        <h3 style="color:var(--income);margin-bottom:10px">■ 収入の部</h3>
+        <table class="report-table">
+          <thead><tr><th>科目</th><th class="num">金額</th><th class="num">構成比</th></tr></thead>
+          <tbody>${catTable(incomeRows,incomeTotal)}</tbody>
+          <tbody><tr class="total-row"><td>収入合計</td><td class="num">${yen(incomeTotal)}</td><td class="num">100%</td></tr></tbody>
+        </table>
+      </div>
+      <div>
+        <h3 style="color:var(--expense);margin-bottom:10px">■ 支出の部</h3>
+        <table class="report-table">
+          <thead><tr><th>科目</th><th class="num">金額</th><th class="num">構成比</th></tr></thead>
+          <tbody>${catTable(expenseRows,expenseTotal)}</tbody>
+          <tbody><tr class="total-row"><td>支出合計</td><td class="num">${yen(expenseTotal)}</td><td class="num">100%</td></tr></tbody>
+        </table>
+      </div>
+    </div>`);
+
+  if(chk('secChart'))P.push(`
+    <div style="margin-top:24px">
+      <h3 style="margin-bottom:10px">■ 科目別支出（円グラフ）</h3>
+      ${expensePieHTML(expenseRows)}
+    </div>`);
+
+  if(chk('secAccounts'))P.push(`
+    <div style="margin-top:24px">
+      <h3 style="margin-bottom:10px">■ 口座別 期首・期末残高</h3>
+      <table class="report-table">
+        <thead><tr><th>口座</th><th class="num">期首残高</th><th class="num">期末残高</th><th class="num">増減</th></tr></thead>
+        <tbody>${acctRows}</tbody>
+        <tbody><tr class="total-row"><td>総資産合計</td><td class="num">${yen(carryIn)}</td><td class="num">${yen(carryOut)}</td><td class="num ${carryOut-carryIn<0?'amt-expense':''}">${(carryOut-carryIn>=0?'+':'')+yen(carryOut-carryIn)}</td></tr></tbody>
+      </table>
+    </div>`);
+
+  if(chk('secSign'))P.push(signBlockHTML());
+
+  P.push(`<p class="hint" style="margin-top:20px">※ 本報告書は「${esc(org().name)}」の登録取引データに基づき自動生成されています。</p>`);
+  document.getElementById('reportOutput').innerHTML=P.join('\n');
+}
+
+/* 出納帳（口座ごとに入金・出金・残高を時系列で表示） */
+function buildCashbook(from,to,repBook,includeTime){
+  const opening=dayBefore(from);
+  const accts=accountsForReport(repBook,includeTime);
+  const showBook=repBook==='all';
+  let sections;
+  if(!accts.length){
+    sections='<p class="empty">対象の口座がありません。</p>';
+  }else{
+    sections=accts.map(a=>{
+      const rows=org().transactions.filter(t=>
+        inBook(t,repBook)&&t.date>=from&&t.date<=to&&(t.account===a.id||t.toAccount===a.id)
+      ).sort((x,y)=>x.date<y.date?-1:x.date>y.date?1:0);
+      let bal=accountBalance(a.id,opening);
+      const openBal=bal;
+      let inSum=0,outSum=0;
+      const body=rows.map(t=>{
+        let inc=0,out=0,desc='';
+        if(t.type==='transfer'){
+          if(t.account===a.id){out=t.amount;desc='振替 → '+esc(acctById(t.toAccount)?.name||'—');}
+          else{inc=t.amount;desc='振替 ← '+esc(acctById(t.account)?.name||'—');}
+        }else if(t.type==='income'){inc=t.amount;desc=esc(t.category||'');}
+        else{out=t.amount;desc=esc(t.category||'');}
+        bal+=inc-out;inSum+=inc;outSum+=out;
+        if(t.memo)desc+=` <span class="muted">（${esc(t.memo)}）</span>`;
+        return `<tr>
+          <td>${t.date}</td>
+          <td>${desc}</td>
+          <td class="num amt-income">${inc?yen(inc):''}</td>
+          <td class="num amt-expense">${out?yen(out):''}</td>
+          <td class="num ${bal<0?'amt-expense':''}">${yen(bal)}</td>
+        </tr>`;
+      }).join('');
+      return `
+        <div style="margin-top:22px">
+          <h3 style="margin-bottom:8px">■ 出納帳：${esc(a.name)}${showBook?` <span class="pill">${esc(bookName(a.book||1))}</span>`:''}</h3>
+          <table class="report-table">
+            <thead><tr><th>日付</th><th>摘要</th><th class="num">収入</th><th class="num">支出</th><th class="num">残高</th></tr></thead>
+            <tbody>
+              <tr><td>${from}</td><td class="muted">前期繰越（期首残高）</td><td class="num"></td><td class="num"></td><td class="num">${yen(openBal)}</td></tr>
+              ${body}
+            </tbody>
+            <tbody><tr class="total-row"><td colspan="2">期間合計 ／ 期末残高</td><td class="num amt-income">${yen(inSum)}</td><td class="num amt-expense">${yen(outSum)}</td><td class="num ${bal<0?'amt-expense':''}">${yen(bal)}</td></tr></tbody>
+          </table>
+        </div>`;
+    }).join('');
+  }
+  document.getElementById('reportOutput').innerHTML=`
+    <div class="report-head">
+      <div>
+        <div class="org">${esc(org().name)}</div>
+        <h2>出納帳</h2>
+        <div class="period">対象帳簿：${esc(bookLabel(repBook))}　/　定期預金：${includeTime?'含む':'除く'}</div>
+        <div class="period">対象期間：${from} 〜 ${to}</div>
+      </div>
+      <div style="text-align:right" class="muted">作成日：${todayStr()}</div>
+    </div>
+    ${sections}
+    <p class="hint" style="margin-top:20px">※ 各口座の期首残高（前期繰越）に、対象期間の入金・出金を加減した残高を表示しています。振替は相手口座名を摘要に記載しています。</p>
+    ${document.getElementById('secSign')&&document.getElementById('secSign').checked?signBlockHTML():''}
+  `;
+}
+
+/* ============ Excel(.xlsx)出力（外部ライブラリ不使用・自己完結） ============ */
+/* --- ZIP（無圧縮 store）---- */
+const CRC_TABLE=(()=>{let c,t=[];for(let n=0;n<256;n++){c=n;for(let k=0;k<8;k++)c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1);t[n]=c>>>0;}return t;})();
+function crc32(bytes){let c=0xFFFFFFFF;for(let i=0;i<bytes.length;i++)c=CRC_TABLE[(c^bytes[i])&0xFF]^(c>>>8);return (c^0xFFFFFFFF)>>>0;}
+function strBytes(s){return new TextEncoder().encode(s);}
+function zipStore(files){
+  const u16=n=>[n&255,(n>>8)&255], u32=n=>[n&255,(n>>8)&255,(n>>16)&255,(n>>24)&255];
+  const parts=[]; const central=[]; let offset=0;
+  for(const f of files){
+    const nameB=strBytes(f.name), crc=crc32(f.data), size=f.data.length;
+    const local=[].concat(u32(0x04034b50),u16(20),u16(0),u16(0),u16(0),u16(0),u32(crc),u32(size),u32(size),u16(nameB.length),u16(0));
+    parts.push(new Uint8Array(local),nameB,f.data);
+    central.push({nameB,crc,size,offset});
+    offset+=local.length+nameB.length+size;
+  }
+  let cSize=0; const cParts=[];
+  for(const c of central){
+    const h=[].concat(u32(0x02014b50),u16(20),u16(20),u16(0),u16(0),u16(0),u16(0),u32(c.crc),u32(c.size),u32(c.size),u16(c.nameB.length),u16(0),u16(0),u16(0),u16(0),u32(0),u32(c.offset));
+    cParts.push(new Uint8Array(h),c.nameB); cSize+=h.length+c.nameB.length;
+  }
+  const end=[].concat(u32(0x06054b50),u16(0),u16(0),u16(central.length),u16(central.length),u32(cSize),u32(offset),u16(0));
+  const all=[...parts,...cParts,new Uint8Array(end)];
+  const total=all.reduce((s,p)=>s+p.length,0), out=new Uint8Array(total);
+  let p=0; for(const part of all){out.set(part,p);p+=part.length;}
+  return out;
+}
+/* --- XLSX 部品 --- */
+const XLSX_STYLES='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+'<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'+
+'<numFmts count="1"><numFmt numFmtId="164" formatCode="#,##0"/></numFmts>'+
+'<fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts>'+
+'<fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>'+
+'<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border>'+
+'<border><left style="thin"><color indexed="64"/></left><right style="thin"><color indexed="64"/></right><top style="thin"><color indexed="64"/></top><bottom style="thin"><color indexed="64"/></bottom><diagonal/></border></borders>'+
+'<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'+
+'<cellXfs count="8">'+
+'<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'+
+'<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/>'+
+'<xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>'+
+'<xf numFmtId="164" fontId="1" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyFont="1"/>'+
+'<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1"/>'+
+'<xf numFmtId="0" fontId="1" fillId="0" borderId="1" xfId="0" applyBorder="1" applyFont="1"/>'+
+'<xf numFmtId="164" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1"/>'+
+'<xf numFmtId="164" fontId="1" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1" applyFont="1"/>'+
+'</cellXfs>'+
+'<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
+function xmlEsc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));}
+function colLetter(n){let s='';while(n>0){const m=(n-1)%26;s=String.fromCharCode(65+m)+s;n=(n-m-1)/26;}return s;}
+/* セル生成：文字=T / 数値=Nn（style: 0既定,1太字,2数値,3太字数値） */
+function T(v,s){return {t:'s',v:v==null?'':v,s:s||0};}
+function Nn(v,s){return {t:'n',v:Math.round(v||0),s:s||2};}
+function sheetXml(rows,cols){
+  let sd='';
+  rows.forEach((row,ri)=>{
+    let cells='';
+    row.forEach((cell,ci)=>{
+      if(cell==null)return;
+      const ref=colLetter(ci+1)+(ri+1), st=cell.s?` s="${cell.s}"`:'';
+      if(cell.t==='n')cells+=`<c r="${ref}"${st}><v>${cell.v}</v></c>`;
+      else cells+=`<c r="${ref}"${st} t="inlineStr"><is><t xml:space="preserve">${xmlEsc(cell.v)}</t></is></c>`;
+    });
+    sd+=`<row r="${ri+1}">${cells}</row>`;
+  });
+  const colsXml=cols?`<cols>${cols.map((w,i)=>`<col min="${i+1}" max="${i+1}" width="${w}" customWidth="1"/>`).join('')}</cols>`:'';
+  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+    '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'+
+    '<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>'+
+    colsXml+`<sheetData>${sd}</sheetData>`+
+    '<pageMargins left="0.7" right="0.7" top="0.75" bottom="0.75" header="0.3" footer="0.3"/>'+
+    '<pageSetup paperSize="9" orientation="portrait" fitToWidth="1" fitToHeight="0"/>'+
+    '</worksheet>';
+}
+function sheetNameSafe(name,used){
+  let n=String(name||'Sheet').replace(/[\\/:*?\[\]]/g,' ').slice(0,31)||'Sheet';
+  let base=n,i=2; while(used.has(n)){n=(base.slice(0,28)+' '+i).slice(0,31);i++;}
+  used.add(n); return n;
+}
+function buildXlsx(sheets){
+  const files=[];
+  const ct='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+    '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'+
+    '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'+
+    '<Default Extension="xml" ContentType="application/xml"/>'+
+    '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'+
+    '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'+
+    sheets.map((s,i)=>`<Override PartName="/xl/worksheets/sheet${i+1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('')+
+    '</Types>';
+  files.push({name:'[Content_Types].xml',data:strBytes(ct)});
+  files.push({name:'_rels/.rels',data:strBytes('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>')});
+  const sheetsXml=sheets.map((s,i)=>`<sheet name="${xmlEsc(s.name)}" sheetId="${i+1}" r:id="rId${i+1}"/>`).join('');
+  files.push({name:'xl/workbook.xml',data:strBytes('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>'+sheetsXml+'</sheets></workbook>')});
+  const rels=['<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'];
+  sheets.forEach((s,i)=>rels.push(`<Relationship Id="rId${i+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i+1}.xml"/>`));
+  rels.push(`<Relationship Id="rId${sheets.length+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>`);
+  rels.push('</Relationships>');
+  files.push({name:'xl/_rels/workbook.xml.rels',data:strBytes(rels.join(''))});
+  files.push({name:'xl/styles.xml',data:strBytes(XLSX_STYLES)});
+  sheets.forEach((s,i)=>files.push({name:`xl/worksheets/sheet${i+1}.xml`,data:strBytes(sheetXml(s.rows,s.cols))}));
+  return zipStore(files);
+}
+function downloadXlsx(sheets,filename){
+  const data=buildXlsx(sheets);
+  const blob=new Blob([data],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  download(blob,filename);
+}
+
+/* --- 報告書を Excel 出力 --- */
+function exportReportExcel(){
+  const from=document.getElementById('repFrom').value,to=document.getElementById('repTo').value;
+  if(!from||!to){alert('対象期間を指定してください');return;}
+  const repBookVal=document.getElementById('repBook').value;
+  const repBook=repBookVal==='all'?'all':+repBookVal;
+  const includeTime=document.getElementById('repTime').value!=='exclude';
+  const type=document.getElementById('repType').value;
+  const chk=id=>{const el=document.getElementById(id);return el?el.checked:true;};
+  const opening=dayBefore(from);
+  const repAccts=accountsForReport(repBook,includeTime);
+  const typeShort={cash:'現金',bank:'銀行',time:'定期',other:'他'};
+  // 罫線付きセル：HB=見出し/合計(太字), TX=文字, MN=金額, MB=金額(太字), EB=空
+  const HB=v=>T(v,5),TX=v=>T(v,4),MN=v=>Nn(v,6),MB=v=>Nn(v,7),EB=()=>T('',4);
+  if(type==='cashbook'){
+    const used=new Set();
+    const sheets=repAccts.length?repAccts.map(a=>{
+      const rows=[];
+      rows.push([T(org().name,1)]);
+      rows.push([T('出納帳：'+a.name+(repBook==='all'?'（'+bookName(a.book||1)+'）':''),1)]);
+      rows.push([T('対象期間：'+from+' 〜 '+to)]);
+      rows.push([]);
+      rows.push([HB('日付'),HB('摘要'),HB('収入'),HB('支出'),HB('残高')]);
+      let bal=accountBalance(a.id,opening),inSum=0,outSum=0;
+      rows.push([TX(from),TX('前期繰越（期首残高）'),EB(),EB(),MN(bal)]);
+      org().transactions.filter(t=>inBook(t,repBook)&&t.date>=from&&t.date<=to&&(t.account===a.id||t.toAccount===a.id))
+        .sort((x,y)=>x.date<y.date?-1:x.date>y.date?1:0).forEach(t=>{
+          let inc=0,out=0,desc='';
+          if(t.type==='transfer'){if(t.account===a.id){out=t.amount;desc='振替 → '+(acctById(t.toAccount)?.name||'—');}else{inc=t.amount;desc='振替 ← '+(acctById(t.account)?.name||'—');}}
+          else if(t.type==='income'){inc=t.amount;desc=t.category||'';}
+          else{out=t.amount;desc=t.category||'';}
+          if(t.memo)desc+='（'+t.memo+'）';
+          bal+=inc-out;inSum+=inc;outSum+=out;
+          rows.push([TX(t.date),TX(desc),inc?MN(inc):EB(),out?MN(out):EB(),MN(bal)]);
+        });
+      rows.push([HB('期間合計／期末残高'),EB(),MB(inSum),MB(outSum),MB(bal)]);
+      return {name:sheetNameSafe(a.name,used),rows,cols:[12,30,12,12,14]};
+    }):[{name:'出納帳',rows:[[T('対象の口座がありません')]]}];
+    downloadXlsx(sheets,`会計データ_${safeName(org().name)}_出納帳_${todayStr()}.xlsx`);
+    return;
+  }
+  // 決算報告書
+  const includedIds=new Set(repAccts.map(a=>a.id));
+  const incomeMap={},expenseMap={}; let incomeTotal=0,expenseTotal=0;
+  org().transactions.filter(t=>inBook(t,repBook)&&t.date>=from&&t.date<=to&&includedIds.has(t.account)).forEach(t=>{
+    if(t.type==='income'){incomeMap[t.category]=(incomeMap[t.category]||0)+t.amount;incomeTotal+=t.amount;}
+    else if(t.type==='expense'){expenseMap[t.category]=(expenseMap[t.category]||0)+t.amount;expenseTotal+=t.amount;}
+  });
+  const net=incomeTotal-expenseTotal;
+  const carryIn=repAccts.reduce((s,a)=>s+accountBalance(a.id,opening),0);
+  const carryOut=repAccts.reduce((s,a)=>s+accountBalance(a.id,to),0);
+  const adjust=carryOut-carryIn-net;
+  const sortRows=obj=>Object.entries(obj).sort((a,b)=>b[1]-a[1]);
+  const rows=[];
+  rows.push([T(org().name,1)]);
+  rows.push([T('収支決算報告書',1)]);
+  rows.push([T('対象帳簿：'+bookLabel(repBook)),T('定期預金：'+(includeTime?'含む':'除く'))]);
+  rows.push([T('対象期間：'+from+' 〜 '+to)]);
+  rows.push([T('作成日：'+todayStr())]);
+  rows.push([]);
+  if(chk('secSummary')){
+    rows.push([T('■ サマリー',1)]);
+    rows.push([TX('収入合計'),MN(incomeTotal)]);
+    rows.push([TX('支出合計'),MN(expenseTotal)]);
+    rows.push([TX('当期収支差額'),MN(net)]);
+    rows.push([TX('次年度繰越（期末残高）'),MN(carryOut)]);
+    rows.push([]);
+  }
+  if(chk('secBalanceCalc')){
+    rows.push([T('■ 収支計算',1)]);
+    rows.push([TX('前年度繰越金'),MN(carryIn)]);
+    rows.push([TX('収入合計'),MN(incomeTotal)]);
+    rows.push([TX('支出合計'),MN(expenseTotal)]);
+    rows.push([TX('当期収支差額（収入 − 支出）'),MN(net)]);
+    if(adjust)rows.push([TX('定期預金等への繰入・振替（純額）'),MN(adjust)]);
+    rows.push([HB('次年度繰越金（期末残高）'),MB(carryOut)]);
+    rows.push([]);
+  }
+  if(chk('secCategories')){
+    rows.push([T('■ 収入の部',1)]);
+    rows.push([HB('科目'),HB('金額')]);
+    sortRows(incomeMap).forEach(([c,v])=>rows.push([TX(c),MN(v)]));
+    rows.push([HB('収入合計'),MB(incomeTotal)]);
+    rows.push([]);
+    rows.push([T('■ 支出の部',1)]);
+    rows.push([HB('科目'),HB('金額')]);
+    sortRows(expenseMap).forEach(([c,v])=>rows.push([TX(c),MN(v)]));
+    rows.push([HB('支出合計'),MB(expenseTotal)]);
+    rows.push([]);
+  }
+  if(chk('secAccounts')){
+    rows.push([T('■ 口座別 期首・期末残高',1)]);
+    rows.push([HB('口座'),HB('種別'),HB('期首残高'),HB('期末残高'),HB('増減')]);
+    repAccts.forEach(a=>{
+      const op=accountBalance(a.id,opening),ed=accountBalance(a.id,to);
+      rows.push([TX(a.name+(repBook==='all'?'（'+bookName(a.book||1)+'）':'')),TX(typeShort[a.type]||''),MN(op),MN(ed),MN(ed-op)]);
+    });
+    rows.push([HB('総資産合計'),EB(),MB(carryIn),MB(carryOut),MB(carryOut-carryIn)]);
+    rows.push([]);
+  }
+  if(chk('secSign')){
+    const r=org().report||defaultReportSettings();
+    rows.push([T('【監査】',1)]);
+    if((r.auditText||'').trim())rows.push([T(r.auditText.trim())]);
+    rows.push([T('監査日：        年    月    日')]);
+    const shown=(r.auditors||[]).filter(n=>n&&n.trim());
+    (shown.length?shown:['']).forEach(n=>rows.push([T('監査人'),T(n||'')]));
+  }
+  downloadXlsx([{name:'決算報告書',rows,cols:[26,10,14,14,14]}],`会計データ_${safeName(org().name)}_決算報告書_${todayStr()}.xlsx`);
+}
+
+/* ============ 設定：団体 ============ */
+const MONTHS=Array.from({length:12},(_,i)=>i+1);
+function fillMonthSelect(el,val){
+  el.innerHTML=MONTHS.map(m=>`<option value="${m}"${m===val?' selected':''}>${m}月</option>`).join('');
+}
+function addOrg(){
+  const name=document.getElementById('newOrgName').value.trim();
+  if(!name){alert('団体名を入力してください');return;}
+  const fy=+document.getElementById('newOrgFY').value||4;
+  const o=newOrg(name,fy);
+  db.orgs.push(o);
+  db.currentOrgId=o.id;
+  currentFY=null;currentBook=1;
+  save();
+  document.getElementById('newOrgName').value='';
+  buildOrgSelect();buildFYSelect();buildBookSelect();fillAccountSelects();resetTxForm();
+  renderSettings();alert(`団体「${name}」を追加しました`);
+}
+function switchOrgTo(id){
+  db.currentOrgId=id;currentFY=null;currentBook=1;save();
+  buildOrgSelect();buildFYSelect();buildBookSelect();fillAccountSelects();resetTxForm();renderSettings();
+}
+function deleteOrg(id){
+  if(db.orgs.length<=1){alert('団体は最低1つ必要です。');return;}
+  const o=db.orgs.find(x=>x.id===id);
+  if(!confirm(`団体「${o.name}」を削除しますか？\nこの団体の口座・取引・カテゴリがすべて削除されます。`))return;
+  if(!confirm('この操作は取り消せません。本当に削除しますか？'))return;
+  db.orgs=db.orgs.filter(x=>x.id!==id);
+  if(db.currentOrgId===id)db.currentOrgId=db.orgs[0].id;
+  currentFY=null;currentBook=1;save();
+  buildOrgSelect();buildFYSelect();buildBookSelect();fillAccountSelects();resetTxForm();renderSettings();
+}
+function renderSettings(){
+  // 団体一覧
+  document.getElementById('orgList').innerHTML=db.orgs.map(o=>{
+    const cur=o.id===db.currentOrgId;
+    const smLabel=o.fyStartMonth===1?'暦年(1月〜)':`${o.fyStartMonth}月〜`;
+    return `<div class="org-row">
+      ${cur?'<span class="badge">選択中</span>':''}
+      <span class="oname">${esc(o.name)}</span>
+      <span class="pill">期首 ${smLabel}</span>
+      <span class="pill">取引 ${o.transactions.length}件</span>
+      ${cur?'':`<button class="btn ghost sm" onclick="switchOrgTo('${o.id}')">切替</button>`}
+      <button class="btn ghost sm" onclick="exportOrg('${o.id}')" title="この団体を書き出し（引き継ぎ用）">書き出し</button>
+      <button class="icon-btn del" onclick="deleteOrg('${o.id}')" title="削除">🗑</button>
+    </div>`;
+  }).join('');
+  // 新規団体の期首月セレクト
+  fillMonthSelect(document.getElementById('newOrgFY'),4);
+  // 現在の団体の設定
+  document.getElementById('curOrgName').value=org().name;
+  fillMonthSelect(document.getElementById('curOrgFY'),org().fyStartMonth);
+  updateFyExample();
+  // 帳簿名
+  document.getElementById('curBook1').value=bookName(1);
+  document.getElementById('curBook2').value=bookName(2);
+  // 報告書の署名・監査設定
+  const rep=org().report||defaultReportSettings();
+  document.getElementById('curAuditor1').value=(rep.auditors&&rep.auditors[0])||'';
+  document.getElementById('curAuditor2').value=(rep.auditors&&rep.auditors[1])||'';
+  document.getElementById('curAuditText').value=rep.auditText||'';
+  // カテゴリ
+  const mk=(type)=>{
+    const cats=org().categories[type];
+    return cats.map((c,i)=>`<div class="toolbar" style="margin-bottom:4px"><span class="pill" style="flex:1;text-align:left">${esc(c)}</span><button class="icon-btn del" onclick="delCat('${type}',${i})">🗑</button></div>`).join('')||'<p class="muted">なし</p>';
+  };
+  document.getElementById('incomeCatList').innerHTML=mk('income');
+  document.getElementById('expenseCatList').innerHTML=mk('expense');
+}
+document.getElementById('curOrgFY') && (document.getElementById('curOrgFY').onchange=updateFyExample);
+function updateFyExample(){
+  const m=+document.getElementById('curOrgFY').value||4;
+  const y=new Date().getFullYear();
+  const {from,to}=fyRange(m,m);
+  document.getElementById('fyExample').textContent=
+    m===1?`暦年管理：${y}年 = ${y}/01/01 〜 ${y}/12/31`
+    :`例）${y}年度 = ${y}/${pad(m)}/01 〜 ${fyRange(y,m).to}`;
+}
+function saveBookNames(){
+  const b1=document.getElementById('curBook1').value.trim()||'帳簿1';
+  const b2=document.getElementById('curBook2').value.trim()||'帳簿2';
+  org().bookNames=[b1,b2];
+  save();
+  buildBookSelect();buildTxBookSelect();buildAcctBookSelect();buildRepBookSelect();
+  renderSettings();
+  alert('帳簿名を保存しました');
+}
+function saveReportSettings(){
+  const a1=document.getElementById('curAuditor1').value.trim();
+  const a2=document.getElementById('curAuditor2').value.trim();
+  const txt=document.getElementById('curAuditText').value.trim();
+  org().report={auditors:[a1,a2],auditText:txt};
+  save();
+  renderSettings();
+  alert('報告書の署名・監査設定を保存しました');
+}
+function saveOrgSettings(){
+  const name=document.getElementById('curOrgName').value.trim();
+  if(!name){alert('団体名を入力してください');return;}
+  const m=+document.getElementById('curOrgFY').value||4;
+  org().name=name;
+  org().fyStartMonth=m;
+  currentFY=null;
+  save();
+  buildOrgSelect();buildFYSelect();
+  renderSettings();
+  alert('会計年度設定を保存しました');
+}
+
+/* ============ カテゴリ ============ */
+function addCat(type){
+  const inp=document.getElementById(type==='income'?'newIncomeCat':'newExpenseCat');
+  const v=inp.value.trim();if(!v)return;
+  if(!org().categories[type].includes(v))org().categories[type].push(v);
+  inp.value='';save();renderSettings();refreshCatList();
+}
+function delCat(type,i){
+  org().categories[type].splice(i,1);save();renderSettings();refreshCatList();
+}
+
+/* ============ インポート/エクスポート ============ */
+const EXPORT_APP='kaikei-app', EXPORT_VER=2;
+function safeName(s){return String(s||'').replace(/[\\/:*?"<>|]/g,'_').replace(/\s+/g,'_').slice(0,40)||'data';}
+function jsonBlob(obj){return new Blob([JSON.stringify(obj,null,2)],{type:'application/json'});}
+
+/* 全データ（全団体＋テーマ設定）をバックアップ */
+function exportJSON(){
+  const env={app:EXPORT_APP,kind:'full',version:EXPORT_VER,exportedAt:todayStr(),theme:currentTheme(),data:db};
+  download(jsonBlob(env),`会計データ_全団体_${todayStr()}.json`);
+}
+/* 団体（帳簿）単位で書き出し（引き継ぎ用） */
+function exportOrg(id){
+  const o=db.orgs.find(x=>x.id===id)||org();
+  const env={app:EXPORT_APP,kind:'org',version:EXPORT_VER,exportedAt:todayStr(),org:JSON.parse(JSON.stringify(o))};
+  download(jsonBlob(env),`会計データ_${safeName(o.name)}_${todayStr()}.json`);
+}
+/* 団体を複製し、ID衝突を避けるため口座・取引IDを振り直す */
+function cloneOrgWithNewIds(src){
+  const o=JSON.parse(JSON.stringify(src));
+  o.id=uid();
+  const idMap={};
+  (o.accounts||[]).forEach(a=>{const nid=uid();idMap[a.id]=nid;a.id=nid;});
+  (o.transactions||[]).forEach(t=>{
+    t.id=uid();
+    if(t.account&&idMap[t.account])t.account=idMap[t.account];
+    if(t.toAccount&&idMap[t.toAccount])t.toAccount=idMap[t.toAccount];
+  });
+  return migrateOrg(o);
+}
+/* 受け取った団体データを整形し、新しい団体として追加 */
+function addImportedOrg(raw){
+  const base={
+    name:raw.name||'読込団体',
+    fyStartMonth:raw.fyStartMonth||4,
+    bookNames:(Array.isArray(raw.bookNames)&&raw.bookNames.length>=2)?raw.bookNames:DEFAULT_BOOK_NAMES.slice(),
+    accounts:(Array.isArray(raw.accounts)&&raw.accounts.length)?raw.accounts:defaultAccounts(),
+    transactions:Array.isArray(raw.transactions)?raw.transactions:[],
+    categories:raw.categories||JSON.parse(JSON.stringify(DEFAULT_CATS))
+  };
+  const o=cloneOrgWithNewIds(base);
+  db.orgs.push(o);
+  db.currentOrgId=o.id;
+  return o;
+}
+/* 読み込んだJSONの種別を判定 */
+function parseImport(obj){
+  if(!obj||typeof obj!=='object')return null;
+  if(obj.app===EXPORT_APP){
+    if(obj.kind==='org'&&obj.org)return {type:'org',org:obj.org,theme:obj.theme};
+    if(obj.kind==='full'&&obj.data&&Array.isArray(obj.data.orgs))return {type:'full',db:obj.data,theme:obj.theme};
+  }
+  if(Array.isArray(obj.orgs)&&obj.orgs.length)return {type:'full',db:obj};       // 旧：素のdb
+  if(obj.accounts&&obj.transactions&&!obj.orgs)return {type:'org',org:obj};      // 旧：単一団体
+  return null;
+}
+function applyTheme(t){
+  if(t!=='dark'&&t!=='light')return;
+  document.documentElement.setAttribute('data-theme',t);
+  try{localStorage.setItem('kaikei_theme',t);}catch(e){}
+  syncThemeIcon();
+}
+function exportCSV(){
+  const rows=filteredTx();
+  const head=['帳簿','日付','区分','カテゴリ','口座','振替先','金額','メモ'];
+  const typeM={income:'収入',expense:'支出',transfer:'振替'};
+  const lines=[head.join(',')].concat(rows.map(t=>[
+    csv(bookName(t.book||1)),t.date,typeM[t.type],csv(t.category||''),csv(acctById(t.account)?.name||''),
+    csv(t.type==='transfer'?(acctById(t.toAccount)?.name||''):''),t.amount,csv(t.memo||'')
+  ].join(',')));
+  const blob=new Blob(['﻿'+lines.join('\r\n')],{type:'text/csv'});
+  download(blob,`取引明細_${org().name}_${todayStr()}.csv`);
+}
+function csv(s){return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}
+function download(blob,name){
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+document.getElementById('importFile').onchange=function(){
+  const f=this.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=()=>{
+    try{
+      const parsed=parseImport(JSON.parse(r.result));
+      if(!parsed)throw 0;
+      if(parsed.type==='org'){
+        // 単一団体ファイル → 既存データを保持したまま新しい団体として追加
+        const nm=parsed.org.name||'読込団体';
+        if(!confirm(`この団体「${nm}」を現在のデータに追加して読み込みますか？\n（既存の団体・データはそのまま残ります）`))return;
+        const o=addImportedOrg(parsed.org);
+        currentFY=null;currentBook=1;save();initAll();renderSettings();showView('settings');
+        alert(`団体「${o.name}」を追加しました`);
+      }else{
+        // 全体バックアップ → 全データを上書き復元
+        if(!confirm('全体バックアップです。現在の全データを上書きして復元しますか？\n（この操作は取り消せません）'))return;
+        db=migrateDb(parsed.db);currentFY=null;currentBook=1;save();
+        applyTheme(parsed.theme);
+        initAll();alert('全データを復元しました');
+      }
+    }catch(e){alert('ファイルを読み込めませんでした。会計管理アプリで書き出したJSONファイルを選んでください。');}
+  };
+  r.readAsText(f);this.value='';
+};
+function resetAll(){
+  if(!confirm('すべての団体・取引データを削除して初期状態に戻します。よろしいですか？'))return;
+  if(!confirm('この操作は取り消せません。本当に削除しますか？'))return;
+  localStorage.removeItem(KEY);localStorage.removeItem(KEY_V1);
+  db=freshDb();currentFY=null;save();initAll();
+}
+
+/* ============ 共通 ============ */
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+function initAll(){
+  currentFY=null;currentBook=1;
+  buildOrgSelect();
+  buildFYSelect();
+  buildBookSelect();
+  buildTxBookSelect();
+  buildAcctBookSelect();
+  fillAccountSelects();
+  document.getElementById('txDate').value=todayStr();
+  setTxType('expense');
+  const {from,to}=fyRange(currentFY,org().fyStartMonth);
+  document.getElementById('fltFrom').value=from;
+  document.getElementById('fltTo').value=to;
+  document.getElementById('repFrom').value='';
+  document.getElementById('repTo').value='';
+  renderDashboard();
+}
+initAll();
+
+/* ============ PWA：オフライン用 Service Worker 登録 ============ */
+/* URL公開（http/https）で開いたときだけ有効。ローカルファイル(file://)では自動スキップ */
+if('serviceWorker' in navigator && location.protocol.startsWith('http')){
+  window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{});});
+}
+</script>
+</body>
+</html>

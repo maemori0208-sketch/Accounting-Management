@@ -1,0 +1,15 @@
+{
+  "name": "会計管理アプリ",
+  "short_name": "会計管理",
+  "description": "団体会計（自治会・町内会・PTA など）向けの会計管理アプリ",
+  "lang": "ja",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4f6f9",
+  "theme_color": "#2563eb",
+  "icons": [
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
