@@ -215,6 +215,20 @@ td.num{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
 .org-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
 .org-row .badge{background:var(--brand);color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px}
 .org-row .oname{font-weight:700;flex:1}
+/* レシート */
+.rcpt-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px}
+.rcpt-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;box-shadow:var(--shadow);cursor:pointer;position:relative;display:flex;flex-direction:column}
+.rcpt-card:hover{border-color:var(--brand)}
+.rcpt-thumb{width:100%;aspect-ratio:3/4;object-fit:cover;background:var(--bg);display:block}
+.rcpt-meta{padding:8px 10px}
+.rcpt-meta .d{font-size:12px;color:var(--muted)}
+.rcpt-meta .a{font-weight:700;font-variant-numeric:tabular-nums}
+.rcpt-badge{position:absolute;top:8px;right:8px;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px}
+.rcpt-badge.linked{background:var(--income-bg);color:var(--income)}
+.rcpt-badge.unlinked{background:var(--expense-bg);color:var(--expense)}
+.rcpt-full{max-width:100%;max-height:52vh;object-fit:contain;background:#000;border-radius:8px}
+.icon-btn.clip.on{color:var(--income)}
+@media(max-width:640px){.rcpt-grid{grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px}}
 </style>
 <script>
 /* テーマを描画前に適用（ちらつき防止） */
@@ -248,6 +262,7 @@ td.num{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
     <button data-view="dashboard" class="active">ダッシュボード</button>
     <button data-view="transactions">取引</button>
     <button data-view="accounts">口座</button>
+    <button data-view="receipts">レシート</button>
     <button data-view="report">決算報告書</button>
     <button data-view="settings">設定</button>
   </nav>
@@ -366,6 +381,34 @@ td.num{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
       <p class="hint">期首残高は口座の開始時点の残高です。取引を登録すると自動で残高が増減します。各口座カードの ✎ で編集できます。</p>
     </div>
     <div class="acct-list" id="acctList"></div>
+  </section>
+
+  <!-- RECEIPTS -->
+  <section id="receipts" class="view">
+    <h2 class="section">レシート・領収書</h2>
+    <p class="section-sub" id="rcptSub"></p>
+    <div class="panel">
+      <div class="toolbar">
+        <button class="btn" onclick="triggerReceiptCapture()">📷 カメラで撮影</button>
+        <button class="btn ghost" onclick="triggerReceiptPick()">🖼️ 画像を選択</button>
+        <span class="spacer" style="margin-left:auto"></span>
+        <label class="field" style="min-width:150px">絞り込み
+          <select id="rcptFilter" onchange="renderReceipts()">
+            <option value="all">すべて</option>
+            <option value="unlinked">未紐付けのみ</option>
+            <option value="linked">紐付け済みのみ</option>
+          </select>
+        </label>
+        <label class="field" style="min-width:140px">期間
+          <select id="rcptPeriod" onchange="renderReceipts()">
+            <option value="fy">選択中の年度</option>
+            <option value="all">全期間</option>
+          </select>
+        </label>
+      </div>
+      <p class="hint">スマホでは撮影ボタンでカメラが起動します。画像は自動で圧縮してこの端末内（IndexedDB）に保存され、支出取引と紐付けできます。取引画面の 📎 からも撮影・添付できます。</p>
+    </div>
+    <div id="rcptGallery"></div>
   </section>
 
   <!-- REPORT -->
@@ -537,6 +580,10 @@ td.num{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
         <h4>口座の管理（口座タブ）</h4>
         <p>現金・銀行口座などを帳簿ごとに追加します。期首残高を設定すると、以降の残高は取引から自動で計算されます。</p>
       </div></div>
+      <div class="help-item"><div class="help-ico">🧾</div><div>
+        <h4>レシート・領収書（レシートタブ）</h4>
+        <p>スマホの「📷 カメラで撮影」で領収書を撮ると、圧縮して端末内に保存されます。各レシートは支出取引と紐付けでき、取引一覧の 📎 からも撮影・添付できます。画像はバックアップJSONにも含まれます。</p>
+      </div></div>
       <div class="help-item"><div class="help-ico">📊</div><div>
         <h4>ダッシュボード</h4>
         <p>収入・支出・収支のサマリーと、「科目別支出の円グラフ」でお金の流れをひと目で確認できます。</p>
@@ -564,6 +611,22 @@ td.num{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
   </div>
 </div>
 
+<!-- RECEIPT MODAL -->
+<div id="rcptModal" class="modal-overlay no-print" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="rcptTitle">
+    <div class="modal-head">
+      <h3 id="rcptTitle">🧾 レシート詳細</h3>
+      <button class="modal-close" onclick="closeReceiptModal()" aria-label="閉じる">×</button>
+    </div>
+    <div class="modal-body" id="rcptModalBody"></div>
+  </div>
+</div>
+
+<!-- 隠しファイル入力（カメラ撮影・画像選択・取引への添付） -->
+<input type="file" id="rcptCapture" accept="image/*" capture="environment" style="display:none">
+<input type="file" id="rcptPick" accept="image/*" multiple style="display:none">
+<input type="file" id="rcptAttach" accept="image/*" capture="environment" style="display:none">
+
 <script>
 /* ============ データ層 ============ */
 const KEY='kaikei_app_v2';
@@ -583,13 +646,15 @@ function defaultReportSettings(){return {auditors:['',''],auditText:DEFAULT_AUDI
 function newOrg(name,fyStartMonth){
   return {id:uid(),name:name||'新しい団体',fyStartMonth:fyStartMonth||4,
     bookNames:DEFAULT_BOOK_NAMES.slice(),report:defaultReportSettings(),
-    accounts:defaultAccounts(),transactions:[],categories:JSON.parse(JSON.stringify(DEFAULT_CATS))};
+    accounts:defaultAccounts(),transactions:[],receipts:[],categories:JSON.parse(JSON.stringify(DEFAULT_CATS))};
 }
 /* 既存データに帳簿・報告書設定を補完（後方互換） */
 function migrateOrg(o){
   if(!Array.isArray(o.bookNames)||o.bookNames.length<2)o.bookNames=DEFAULT_BOOK_NAMES.slice();
   (o.accounts||[]).forEach(a=>{if(a.book!==1&&a.book!==2)a.book=1;});
   (o.transactions||[]).forEach(t=>{if(t.book!==1&&t.book!==2)t.book=1;});
+  if(!Array.isArray(o.receipts))o.receipts=[];
+  o.receipts.forEach(r=>{if(r.book!==1&&r.book!==2)r.book=1;if(r.txId===undefined)r.txId=null;});
   if(!o.report||typeof o.report!=='object')o.report=defaultReportSettings();
   if(!Array.isArray(o.report.auditors))o.report.auditors=['',''];
   while(o.report.auditors.length<2)o.report.auditors.push('');
@@ -726,6 +791,7 @@ function refreshActive(){
   if(v==='dashboard')renderDashboard();
   else if(v==='transactions')renderTx();
   else if(v==='accounts')renderAccounts();
+  else if(v==='receipts')renderReceipts();
   else if(v==='report')syncReportDefaults();
   else if(v==='settings')renderSettings();
 }
@@ -737,6 +803,7 @@ function showView(v){
   if(v==='dashboard')renderDashboard();
   if(v==='transactions')renderTx();
   if(v==='accounts')renderAccounts();
+  if(v==='receipts')renderReceipts();
   if(v==='report')syncReportDefaults();
   if(v==='settings')renderSettings();
   window.scrollTo(0,0);
@@ -765,11 +832,11 @@ function openHelp(){document.getElementById('helpModal').hidden=false;}
 function closeHelp(){document.getElementById('helpModal').hidden=true;}
 document.getElementById('helpBtn').onclick=openHelp;
 document.getElementById('helpModal').addEventListener('click',e=>{if(e.target.id==='helpModal')closeHelp();});
-document.addEventListener('keydown',e=>{if(e.key==='Escape')closeHelp();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeHelp();closeReceiptModal();}});
 
 /* ============ スワイプで画面切替（スマホ） ============ */
 (function(){
-  const ORDER=['dashboard','transactions','accounts','report','settings'];
+  const ORDER=['dashboard','transactions','accounts','receipts','report','settings'];
   /* 横スクロールできる要素（テーブル・ナビ等）上での操作はスワイプ切替の対象外 */
   function inHScroll(el){
     while(el&&el!==document.body&&el.nodeType===1){
@@ -786,6 +853,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeHelp();});
   area.addEventListener('touchstart',e=>{
     if(e.touches.length!==1){tracking=false;return;}
     if(!document.getElementById('helpModal').hidden){tracking=false;return;}
+    if(!document.getElementById('rcptModal').hidden){tracking=false;return;}
     if(inHScroll(e.target)){tracking=false;return;}
     const t=e.touches[0];sx=t.clientX;sy=t.clientY;st=Date.now();tracking=true;
   },{passive:true});
@@ -952,6 +1020,7 @@ function editTx(id){
 function delTx(id){
   if(!confirm('この取引を削除しますか？'))return;
   org().transactions=org().transactions.filter(t=>t.id!==id);
+  (org().receipts||[]).forEach(r=>{if(r.txId===id)r.txId=null;}); // 紐付けは解除（画像は残す）
   save();buildFYSelect();renderTx();
 }
 
@@ -1014,6 +1083,10 @@ function renderTx(){
       <td class="num">${amtCell}</td>
       <td class="muted">${esc(x.memo||'')}</td>
       <td class="no-print"><div class="row-actions">
+        ${x.type==='expense'?(()=>{const n=(org().receipts||[]).filter(r=>r.txId===x.id).length;
+          return n>0
+            ?`<button class="icon-btn clip on" onclick="openReceiptsOfTx('${x.id}')" title="レシート${n}件を表示">📎${n>1?n:''}</button>`
+            :`<button class="icon-btn clip" onclick="attachToTx('${x.id}')" title="レシートを撮影・添付">📎</button>`;})():''}
         <button class="icon-btn" onclick="editTx('${x.id}')" title="編集">✎</button>
         <button class="icon-btn del" onclick="delTx('${x.id}')" title="削除">🗑</button>
       </div></td>
@@ -1077,7 +1150,9 @@ function delAccount(id){
   if(relTx.length){
     if(!confirm(`口座「${a.name}」には関連する取引が ${relTx.length} 件あります。\nこの口座と、関連取引 ${relTx.length} 件を「すべて」削除します。よろしいですか？\n\n※ 名前・種別・期首残高だけを直したい場合は、削除せず ✎（編集）をご利用ください。`))return;
     if(!confirm('この操作は取り消せません。本当に削除しますか？（関連取引も削除されます）'))return;
+    const removed=new Set(relTx.map(t=>t.id));
     org().transactions=org().transactions.filter(t=>!(t.account===id||t.toAccount===id));
+    (org().receipts||[]).forEach(r=>{if(r.txId&&removed.has(r.txId))r.txId=null;}); // 紐付け解除
   }else{
     if(!confirm(`口座「${a.name}」を削除しますか？`))return;
   }
@@ -1710,6 +1785,7 @@ function deleteOrg(id){
   const o=db.orgs.find(x=>x.id===id);
   if(!confirm(`団体「${o.name}」を削除しますか？\nこの団体の口座・取引・カテゴリがすべて削除されます。`))return;
   if(!confirm('この操作は取り消せません。本当に削除しますか？'))return;
+  (o.receipts||[]).forEach(r=>idbDel(r.id)); // レシート画像も削除
   db.orgs=db.orgs.filter(x=>x.id!==id);
   if(db.currentOrgId===id)db.currentOrgId=db.orgs[0].id;
   currentFY=null;currentBook=1;save();
@@ -1803,34 +1879,239 @@ function delCat(type,i){
   org().categories[type].splice(i,1);save();renderSettings();refreshCatList();
 }
 
+/* ============ レシート・領収書 ============ */
+/* 画像は IndexedDB に保存（localStorageの容量制限を回避）。メタデータは org().receipts に保持 */
+let _idbP=null;
+function idb(){
+  if(_idbP)return _idbP;
+  _idbP=new Promise((res,rej)=>{
+    let rq; try{rq=indexedDB.open('kaikei_receipts',1);}catch(e){return rej(e);}
+    rq.onupgradeneeded=()=>{try{rq.result.createObjectStore('img');}catch(e){}};
+    rq.onsuccess=()=>res(rq.result);
+    rq.onerror=()=>rej(rq.error);
+  });
+  return _idbP;
+}
+function idbPut(k,v){return idb().then(d=>new Promise((res,rej)=>{const t=d.transaction('img','readwrite');t.objectStore('img').put(v,k);t.oncomplete=()=>res();t.onerror=()=>rej(t.error);}));}
+function idbGet(k){return idb().then(d=>new Promise((res,rej)=>{const t=d.transaction('img','readonly');const rq=t.objectStore('img').get(k);rq.onsuccess=()=>res(rq.result);rq.onerror=()=>rej(rq.error);}));}
+function idbDel(k){return idb().then(d=>new Promise((res)=>{const t=d.transaction('img','readwrite');t.objectStore('img').delete(k);t.oncomplete=()=>res();t.onerror=()=>res();})).catch(()=>{});}
+function idbClear(){return idb().then(d=>new Promise((res)=>{const t=d.transaction('img','readwrite');t.objectStore('img').clear();t.oncomplete=()=>res();t.onerror=()=>res();})).catch(()=>{});}
+
+/* 画像をcanvasで縮小・JPEG圧縮してdataURL化（端末容量を節約） */
+function compressImage(file,maxDim,quality){
+  maxDim=maxDim||1400;quality=quality||0.72;
+  return new Promise((res,rej)=>{
+    const url=URL.createObjectURL(file);
+    const img=new Image();
+    img.onload=()=>{
+      URL.revokeObjectURL(url);
+      let w=img.naturalWidth,h=img.naturalHeight;
+      if(!w||!h){rej(new Error('画像サイズを取得できません'));return;}
+      const s=Math.min(1,maxDim/Math.max(w,h));
+      w=Math.round(w*s);h=Math.round(h*s);
+      const c=document.createElement('canvas');c.width=w;c.height=h;
+      const ctx=c.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,w,h);ctx.drawImage(img,0,0,w,h);
+      try{res(c.toDataURL('image/jpeg',quality));}catch(e){rej(e);}
+    };
+    img.onerror=()=>{URL.revokeObjectURL(url);rej(new Error('画像を読み込めませんでした'));};
+    img.src=url;
+  });
+}
+
+let currentReceiptId=null;
+let pendingAttachTx=null;
+
+/* ファイル群を取り込み → 圧縮 → IDB保存 → メタ追加（txId指定時は支出に紐付け） */
+async function handleReceiptFiles(fileList,txId){
+  const files=[...(fileList||[])].filter(f=>f.type.startsWith('image/'));
+  if(!files.length)return;
+  let firstId=null,ng=0;
+  for(const f of files){
+    let dataUrl;
+    try{dataUrl=await compressImage(f);}catch(e){ng++;continue;}
+    const id=uid();
+    try{await idbPut(id,dataUrl);}catch(e){ng++;alert('画像の保存に失敗しました（端末の空き容量をご確認ください）');continue;}
+    let date=todayStr(),amount=0,memo='',book=(currentBook==='all'?1:currentBook);
+    if(txId){const t=org().transactions.find(x=>x.id===txId);if(t){date=t.date;amount=t.amount;memo=t.memo||'';book=t.book||1;}}
+    org().receipts.push({id,book,date,amount:amount||0,memo,txId:txId||null,createdAt:Date.now()});
+    if(!firstId)firstId=id;
+  }
+  save();
+  renderReceipts();renderTx();
+  if(ng)alert(ng+'件の画像を取り込めませんでした。');
+  if(firstId)openReceiptModal(firstId);
+}
+function triggerReceiptCapture(){document.getElementById('rcptCapture').click();}
+function triggerReceiptPick(){document.getElementById('rcptPick').click();}
+function attachToTx(txId){pendingAttachTx=txId;document.getElementById('rcptAttach').click();}
+function openReceiptsOfTx(txId){
+  const r=(org().receipts||[]).find(x=>x.txId===txId);
+  if(r)openReceiptModal(r.id);
+  else{showView('receipts');}
+}
+document.getElementById('rcptCapture').onchange=function(){handleReceiptFiles(this.files,null);this.value='';};
+document.getElementById('rcptPick').onchange=function(){handleReceiptFiles(this.files,null);this.value='';};
+document.getElementById('rcptAttach').onchange=function(){const tx=pendingAttachTx;pendingAttachTx=null;handleReceiptFiles(this.files,tx);this.value='';};
+
+function renderReceipts(){
+  const sm=org().fyStartMonth;
+  const {from,to}=fyRange(currentFY,sm);
+  document.getElementById('rcptSub').textContent=`${org().name}　/　${fyLabel(currentFY)}　/　${bookLabel(currentBook)}`;
+  const filter=document.getElementById('rcptFilter').value;
+  const period=document.getElementById('rcptPeriod').value;
+  let list=(org().receipts||[]).filter(r=>inBook(r,currentBook));
+  if(period==='fy')list=list.filter(r=>r.date>=from&&r.date<=to);
+  if(filter==='unlinked')list=list.filter(r=>!r.txId);
+  else if(filter==='linked')list=list.filter(r=>r.txId);
+  list.sort((a,b)=>b.date<a.date?-1:b.date>a.date?1:(b.createdAt||0)-(a.createdAt||0));
+  const g=document.getElementById('rcptGallery');
+  if(!list.length){g.innerHTML='<div class="panel"><p class="empty">レシートがありません。「📷 カメラで撮影」または「🖼️ 画像を選択」から追加してください。</p></div>';return;}
+  const showBook=currentBook==='all';
+  g.innerHTML='<div class="rcpt-grid">'+list.map(r=>{
+    const linked=!!r.txId;
+    const amt=r.amount?yen(r.amount):'<span class="muted">金額未入力</span>';
+    return `<div class="rcpt-card" onclick="openReceiptModal('${r.id}')">
+      <span class="rcpt-badge ${linked?'linked':'unlinked'}">${linked?'紐付済':'未紐付'}</span>
+      <img class="rcpt-thumb" data-rid="${r.id}" alt="レシート" loading="lazy">
+      <div class="rcpt-meta"><div class="d">${r.date}${showBook?' ・'+esc(bookName(r.book||1)):''}</div><div class="a">${amt}</div></div>
+    </div>`;
+  }).join('')+'</div>';
+  g.querySelectorAll('img[data-rid]').forEach(img=>{
+    idbGet(img.dataset.rid).then(url=>{if(url)img.src=url;else img.alt='画像なし';}).catch(()=>{img.alt='画像を読み込めません';});
+  });
+}
+
+function openReceiptModal(id){
+  const r=(org().receipts||[]).find(x=>x.id===id); if(!r)return;
+  currentReceiptId=id;
+  const linkedTx=r.txId?org().transactions.find(t=>t.id===r.txId):null;
+  const expenses=org().transactions.filter(t=>t.type==='expense').sort((a,b)=>b.date<a.date?-1:b.date>a.date?1:0);
+  const opts=expenses.map(t=>`<option value="${t.id}"${r.txId===t.id?' selected':''}>${t.date}　${esc(t.category||'未分類')}　${yen(t.amount)}${t.book===2?'　['+esc(bookName(2))+']':''}</option>`).join('');
+  const linkHtml=linkedTx?`
+      <p style="margin-bottom:10px">現在の紐付け先：<br><b>${linkedTx.date}　${esc(linkedTx.category||'未分類')}　${yen(linkedTx.amount)}</b>　<span class="pill">${esc(bookName(linkedTx.book||1))}</span></p>
+      <div class="toolbar"><button class="btn ghost sm" onclick="unlinkReceipt()">紐付けを解除</button></div>
+    `:`
+      <div class="toolbar" style="align-items:end">
+        <label class="field" style="flex:1;min-width:200px">支出取引を選んで紐付け
+          <select id="rmLinkSel">${opts||'<option value="">支出取引がありません</option>'}</select>
+        </label>
+        <button class="btn sm" onclick="linkReceiptToSelected()">紐付け</button>
+      </div>
+      <p class="hint" style="margin-bottom:6px">または、このレシートの内容（日付・金額・メモ）で支出を新規作成できます。</p>
+      <div class="toolbar"><button class="btn ghost sm" onclick="createExpenseFromReceipt()">＋ この内容で支出を作成して紐付け</button></div>
+    `;
+  document.getElementById('rcptModalBody').innerHTML=`
+    <div style="text-align:center;margin-bottom:14px">
+      <a id="rmImgLink" target="_blank" rel="noopener"><img id="rcptModalImg" class="rcpt-full" alt="レシート画像を読み込み中…"></a>
+    </div>
+    <div class="grid-form">
+      <label class="field">日付<input type="date" id="rmDate" value="${r.date}"></label>
+      <label class="field">金額（円）<input type="number" id="rmAmount" value="${r.amount||''}" min="0" step="1" placeholder="0"></label>
+      <label class="field">帳簿<select id="rmBook"><option value="1"${(r.book||1)===1?' selected':''}>${esc(bookName(1))}</option><option value="2"${r.book===2?' selected':''}>${esc(bookName(2))}</option></select></label>
+      <label class="field" style="grid-column:1/-1">メモ<input type="text" id="rmMemo" value="${esc(r.memo||'')}" placeholder="店名・品目など"></label>
+    </div>
+    <div class="toolbar" style="margin-top:10px"><button class="btn sm" onclick="saveReceiptMeta()">💾 情報を保存</button></div>
+    <hr style="border:none;border-top:1px solid var(--line);margin:16px 0">
+    <h4 style="font-weight:700;margin-bottom:10px">支出取引との紐付け</h4>
+    ${linkHtml}
+    <hr style="border:none;border-top:1px solid var(--line);margin:16px 0">
+    <div class="toolbar"><button class="btn danger sm" onclick="delReceipt()">🗑 このレシートを削除</button></div>
+  `;
+  document.getElementById('rcptModal').hidden=false;
+  idbGet(id).then(url=>{
+    const img=document.getElementById('rcptModalImg'),a=document.getElementById('rmImgLink');
+    if(img&&url){img.src=url;img.alt='レシート画像';if(a)a.href=url;}
+    else if(img){img.alt='画像を読み込めませんでした';}
+  }).catch(()=>{});
+}
+function closeReceiptModal(){document.getElementById('rcptModal').hidden=true;currentReceiptId=null;}
+document.getElementById('rcptModal').addEventListener('click',e=>{if(e.target.id==='rcptModal')closeReceiptModal();});
+
+function saveReceiptMeta(){
+  const r=(org().receipts||[]).find(x=>x.id===currentReceiptId); if(!r)return;
+  r.date=document.getElementById('rmDate').value||r.date;
+  r.amount=Math.max(0,Math.round(+document.getElementById('rmAmount').value||0));
+  r.book=document.getElementById('rmBook').value==='2'?2:1;
+  r.memo=document.getElementById('rmMemo').value.trim();
+  save();renderReceipts();
+  const btn=document.querySelector('#rcptModalBody .btn.sm');
+  if(btn){const o=btn.textContent;btn.textContent='✓ 保存しました';setTimeout(()=>{if(btn.isConnected)btn.textContent=o;},1200);}
+}
+function linkReceiptToSelected(){
+  const sel=document.getElementById('rmLinkSel');
+  if(!sel||!sel.value){alert('紐付ける支出取引を選んでください');return;}
+  const r=(org().receipts||[]).find(x=>x.id===currentReceiptId); if(!r)return;
+  r.txId=sel.value;save();renderReceipts();renderTx();openReceiptModal(currentReceiptId);
+}
+function unlinkReceipt(){
+  const r=(org().receipts||[]).find(x=>x.id===currentReceiptId); if(!r)return;
+  r.txId=null;save();renderReceipts();renderTx();openReceiptModal(currentReceiptId);
+}
+function createExpenseFromReceipt(){
+  const r=(org().receipts||[]).find(x=>x.id===currentReceiptId); if(!r)return;
+  const book=r.book||1;
+  const accts=accountsOfBook(book);
+  if(!accts.length){alert(`「${bookName(book)}」に口座がありません。先に「口座」画面で口座を追加してください。`);return;}
+  if(!(r.amount>0)){alert('先に金額を入力して「情報を保存」してください。');return;}
+  const tx={id:uid(),type:'expense',book,date:r.date,amount:r.amount,account:accts[0].id,category:'未分類',memo:r.memo||''};
+  org().transactions.push(tx);
+  r.txId=tx.id;
+  save();buildFYSelect();renderReceipts();renderTx();openReceiptModal(currentReceiptId);
+  alert(`支出（${yen(r.amount)}）を作成して紐付けました。\n口座は「${accts[0].name}」、カテゴリは「未分類」で登録しています。取引画面で必要に応じてご修正ください。`);
+}
+function delReceipt(){
+  const r=(org().receipts||[]).find(x=>x.id===currentReceiptId); if(!r)return;
+  if(!confirm('このレシート画像を削除しますか？（支出取引は削除されず、紐付けのみ解除されます）'))return;
+  idbDel(r.id);
+  org().receipts=org().receipts.filter(x=>x.id!==r.id);
+  save();closeReceiptModal();renderReceipts();renderTx();
+}
+
 /* ============ インポート/エクスポート ============ */
 const EXPORT_APP='kaikei-app', EXPORT_VER=2;
 function safeName(s){return String(s||'').replace(/[\\/:*?"<>|]/g,'_').replace(/\s+/g,'_').slice(0,40)||'data';}
 function jsonBlob(obj){return new Blob([JSON.stringify(obj,null,2)],{type:'application/json'});}
 
-/* 全データ（全団体＋テーマ設定）をバックアップ */
-function exportJSON(){
-  const env={app:EXPORT_APP,kind:'full',version:EXPORT_VER,exportedAt:todayStr(),theme:currentTheme(),data:db};
+/* レシート画像をIDBからまとめて取得（バックアップ同梱用） */
+async function collectImages(receipts){
+  const map={};
+  for(const r of (receipts||[])){
+    try{const img=await idbGet(r.id);if(img)map[r.id]=img;}catch(e){}
+  }
+  return map;
+}
+/* 全データ（全団体＋テーマ設定＋レシート画像）をバックアップ */
+async function exportJSON(){
+  const allReceipts=db.orgs.flatMap(o=>o.receipts||[]);
+  const images=await collectImages(allReceipts);
+  const env={app:EXPORT_APP,kind:'full',version:EXPORT_VER,exportedAt:todayStr(),theme:currentTheme(),data:db,images};
   download(jsonBlob(env),`会計データ_全団体_${todayStr()}.json`);
 }
-/* 団体（帳簿）単位で書き出し（引き継ぎ用） */
-function exportOrg(id){
+/* 団体（帳簿）単位で書き出し（引き継ぎ用・レシート画像同梱） */
+async function exportOrg(id){
   const o=db.orgs.find(x=>x.id===id)||org();
-  const env={app:EXPORT_APP,kind:'org',version:EXPORT_VER,exportedAt:todayStr(),org:JSON.parse(JSON.stringify(o))};
+  const images=await collectImages(o.receipts||[]);
+  const env={app:EXPORT_APP,kind:'org',version:EXPORT_VER,exportedAt:todayStr(),org:JSON.parse(JSON.stringify(o)),images};
   download(jsonBlob(env),`会計データ_${safeName(o.name)}_${todayStr()}.json`);
 }
 /* 団体を複製し、ID衝突を避けるため口座・取引IDを振り直す */
 function cloneOrgWithNewIds(src){
   const o=JSON.parse(JSON.stringify(src));
   o.id=uid();
-  const idMap={};
+  const idMap={},txMap={},rcptMap={};
   (o.accounts||[]).forEach(a=>{const nid=uid();idMap[a.id]=nid;a.id=nid;});
   (o.transactions||[]).forEach(t=>{
-    t.id=uid();
+    const nid=uid();txMap[t.id]=nid;t.id=nid;
     if(t.account&&idMap[t.account])t.account=idMap[t.account];
     if(t.toAccount&&idMap[t.toAccount])t.toAccount=idMap[t.toAccount];
   });
-  return migrateOrg(o);
+  (o.receipts||[]).forEach(r=>{
+    const nid=uid();rcptMap[r.id]=nid;r.id=nid;
+    r.txId=(r.txId&&txMap[r.txId])?txMap[r.txId]:null;
+  });
+  migrateOrg(o);
+  o.__rcptMap=rcptMap; // 画像の再キー用（保存前に addImportedOrg で除去）
+  return o;
 }
 /* 受け取った団体データを整形し、新しい団体として追加 */
 function addImportedOrg(raw){
@@ -1840,12 +2121,14 @@ function addImportedOrg(raw){
     bookNames:(Array.isArray(raw.bookNames)&&raw.bookNames.length>=2)?raw.bookNames:DEFAULT_BOOK_NAMES.slice(),
     accounts:(Array.isArray(raw.accounts)&&raw.accounts.length)?raw.accounts:defaultAccounts(),
     transactions:Array.isArray(raw.transactions)?raw.transactions:[],
+    receipts:Array.isArray(raw.receipts)?raw.receipts:[],
     categories:raw.categories||JSON.parse(JSON.stringify(DEFAULT_CATS))
   };
   const o=cloneOrgWithNewIds(base);
+  const rcptMap=o.__rcptMap||{}; delete o.__rcptMap;
   db.orgs.push(o);
   db.currentOrgId=o.id;
-  return o;
+  return {org:o,rcptMap};
 }
 /* 読み込んだJSONの種別を判定 */
 function parseImport(obj){
@@ -1883,21 +2166,26 @@ function download(blob,name){
 document.getElementById('importFile').onchange=function(){
   const f=this.files[0];if(!f)return;
   const r=new FileReader();
-  r.onload=()=>{
+  r.onload=async()=>{
     try{
-      const parsed=parseImport(JSON.parse(r.result));
+      const raw=JSON.parse(r.result);
+      const parsed=parseImport(raw);
       if(!parsed)throw 0;
+      const images=raw&&raw.images&&typeof raw.images==='object'?raw.images:null;
       if(parsed.type==='org'){
         // 単一団体ファイル → 既存データを保持したまま新しい団体として追加
         const nm=parsed.org.name||'読込団体';
         if(!confirm(`この団体「${nm}」を現在のデータに追加して読み込みますか？\n（既存の団体・データはそのまま残ります）`))return;
-        const o=addImportedOrg(parsed.org);
+        const {org:o,rcptMap}=addImportedOrg(parsed.org);
+        if(images){for(const [oldId,url] of Object.entries(images)){const nid=rcptMap[oldId];if(nid){try{await idbPut(nid,url);}catch(e){}}}}
         currentFY=null;currentBook=1;save();initAll();renderSettings();showView('settings');
         alert(`団体「${o.name}」を追加しました`);
       }else{
         // 全体バックアップ → 全データを上書き復元
         if(!confirm('全体バックアップです。現在の全データを上書きして復元しますか？\n（この操作は取り消せません）'))return;
         db=migrateDb(parsed.db);currentFY=null;currentBook=1;save();
+        await idbClear();
+        if(images){for(const [id,url] of Object.entries(images)){try{await idbPut(id,url);}catch(e){}}}
         applyTheme(parsed.theme);
         initAll();alert('全データを復元しました');
       }
@@ -1909,6 +2197,7 @@ function resetAll(){
   if(!confirm('すべての団体・取引データを削除して初期状態に戻します。よろしいですか？'))return;
   if(!confirm('この操作は取り消せません。本当に削除しますか？'))return;
   localStorage.removeItem(KEY);localStorage.removeItem(KEY_V1);
+  idbClear();
   db=freshDb();currentFY=null;save();initAll();
 }
 
