@@ -229,6 +229,17 @@ td.num{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
 .rcpt-full{max-width:100%;max-height:52vh;object-fit:contain;background:#000;border-radius:8px}
 .icon-btn.clip.on{color:var(--income)}
 @media(max-width:640px){.rcpt-grid{grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px}}
+/* 在庫 */
+tr.low-stock td{background:var(--expense-bg)}
+.stock-num{font-weight:700;font-variant-numeric:tabular-nums}
+.stock-num.low{color:var(--expense)}
+.alert-box{background:var(--expense-bg);border:1px solid var(--expense);color:var(--expense);
+  border-radius:10px;padding:12px 16px;margin-bottom:20px;font-weight:600;font-size:13px}
+.alert-box a{color:var(--expense);text-decoration:underline;cursor:pointer}
+.mv-tag{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700}
+.mv-tag.in{background:var(--income-bg);color:var(--income)}
+.mv-tag.out{background:var(--expense-bg);color:var(--expense)}
+.mv-tag.adjust{background:var(--transfer-bg);color:var(--transfer)}
 </style>
 <script>
 /* テーマを描画前に適用（ちらつき防止） */
@@ -263,6 +274,7 @@ td.num{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
     <button data-view="transactions">取引</button>
     <button data-view="accounts">口座</button>
     <button data-view="receipts">レシート</button>
+    <button data-view="inventory">在庫</button>
     <button data-view="report">決算報告書</button>
     <button data-view="settings">設定</button>
   </nav>
@@ -278,6 +290,7 @@ td.num{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
     <h2 class="section">ダッシュボード</h2>
     <p class="section-sub" id="dashSub"></p>
     <div class="cards" id="dashCards"></div>
+    <div id="dashLowStock"></div>
     <div class="two-col">
       <div class="panel">
         <h3>口座残高（繰越→年度末）</h3>
@@ -409,6 +422,92 @@ td.num{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
       <p class="hint">スマホでは撮影ボタンでカメラが起動します。画像は自動で圧縮してこの端末内（IndexedDB）に保存され、支出取引と紐付けできます。取引画面の 📎 からも撮影・添付できます。</p>
     </div>
     <div id="rcptGallery"></div>
+  </section>
+
+  <!-- INVENTORY -->
+  <section id="inventory" class="view">
+    <h2 class="section">在庫管理（備品・消耗品）</h2>
+    <p class="section-sub" id="invSub"></p>
+    <div id="invAlert"></div>
+
+    <!-- 入出庫・棚卸の登録 -->
+    <div class="panel">
+      <h3 id="moveFormTitle">入出庫を登録</h3>
+      <div class="seg" style="margin-bottom:14px" id="moveTypeSeg">
+        <button type="button" data-mtype="in">入庫</button>
+        <button type="button" data-mtype="out">出庫</button>
+        <button type="button" data-mtype="adjust">棚卸</button>
+      </div>
+      <form id="moveForm" class="grid-form">
+        <label class="field">帳簿<select id="moveBook"></select></label>
+        <label class="field">品目
+          <select id="moveItem"></select>
+        </label>
+        <label class="field">日付<input type="date" id="moveDate" required></label>
+        <label class="field" id="moveQtyWrap">数量<input type="number" id="moveQty" min="0" step="any" placeholder="0" required></label>
+        <label class="field" id="movePriceWrap">単価（円）<input type="number" id="movePrice" min="0" step="1" placeholder="0"></label>
+        <label class="field">メモ／理由<input type="text" id="moveMemo" placeholder="仕入先・払出先など"></label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button type="submit" class="btn" id="moveSubmit">登録</button>
+          <button type="button" class="btn ghost" id="moveCancel" style="display:none">取消</button>
+        </div>
+      </form>
+      <input type="hidden" id="moveEditId">
+      <div id="moveExpenseWrap" style="margin-top:12px;border-top:1px dashed var(--line);padding-top:12px">
+        <label class="chk"><input type="checkbox" id="moveMakeExpense" checked>同時に支出（消耗品費）を記録する</label>
+        <div class="grid-form" id="moveExpenseFields" style="margin-top:10px">
+          <label class="field">支出の口座<select id="moveAccount"></select></label>
+          <label class="field">支出カテゴリ<select id="moveCategory"></select></label>
+          <div class="field" style="justify-content:flex-end"><span class="hint" id="moveAmountHint">支出額：¥0</span></div>
+        </div>
+      </div>
+      <p class="hint" id="moveHint"></p>
+    </div>
+
+    <!-- 品目マスタの登録 -->
+    <div class="panel">
+      <h3 id="itemFormTitle">品目を追加</h3>
+      <form id="itemForm" class="grid-form">
+        <label class="field">帳簿<select id="itemBook"></select></label>
+        <label class="field">品目名<input type="text" id="itemName" placeholder="例：コピー用紙 A4" required></label>
+        <label class="field">単位<input type="text" id="itemUnit" placeholder="例：箱 / 個" value="個"></label>
+        <label class="field">品番・SKU（任意）<input type="text" id="itemSku" placeholder="任意"></label>
+        <label class="field">単価の目安（円）<input type="number" id="itemCost" min="0" step="1" value="0"></label>
+        <label class="field">発注点（これ以下で警告）<input type="number" id="itemReorder" min="0" step="any" value="0"></label>
+        <label class="field">期首在庫数<input type="number" id="itemOpening" min="0" step="any" value="0"></label>
+        <label class="field">メモ<input type="text" id="itemNote" placeholder="任意"></label>
+        <div style="display:flex;gap:8px">
+          <button type="submit" class="btn" id="itemSubmit">追加</button>
+          <button type="button" class="btn ghost" id="itemCancel" style="display:none">取消</button>
+        </div>
+      </form>
+      <input type="hidden" id="itemEditId">
+      <p class="hint">期首在庫は品目の管理開始時点の数量です。以降は入出庫・棚卸で自動計算されます。</p>
+    </div>
+
+    <!-- 品目一覧 -->
+    <div class="panel">
+      <h3>品目一覧 <span class="pill" id="invCount"></span></h3>
+      <div style="overflow-x:auto"><table id="itemTable"></table></div>
+    </div>
+
+    <!-- 入出庫履歴 -->
+    <div class="panel">
+      <div class="filters no-print">
+        <label class="field">期間（開始）<input type="date" id="invFrom"></label>
+        <label class="field">期間（終了）<input type="date" id="invTo"></label>
+        <label class="field">品目<select id="invFltItem"><option value="">すべて</option></select></label>
+        <label class="field">区分
+          <select id="invFltType"><option value="">すべて</option><option value="in">入庫</option><option value="out">出庫</option><option value="adjust">棚卸</option></select>
+        </label>
+        <button class="btn ghost sm" onclick="invResetToFY()">年度で絞る</button>
+        <button class="btn ghost sm" onclick="invClearFilters()">全期間</button>
+        <span class="spacer" style="margin-left:auto"></span>
+        <button class="btn ghost sm" onclick="exportInventoryCSV()">CSV出力</button>
+        <button class="btn ghost sm" onclick="exportInventoryExcel()">Excel出力</button>
+      </div>
+      <div style="overflow-x:auto"><table id="moveTable"></table></div>
+    </div>
   </section>
 
   <!-- REPORT -->
@@ -584,6 +683,10 @@ td.num{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
         <h4>レシート・領収書（レシートタブ）</h4>
         <p>スマホの「📷 カメラで撮影」で領収書を撮ると、圧縮して端末内に保存されます。各レシートは支出取引と紐付けでき、取引一覧の 📎 からも撮影・添付できます。画像はバックアップJSONにも含まれます。</p>
       </div></div>
+      <div class="help-item"><div class="help-ico">📦</div><div>
+        <h4>在庫管理（在庫タブ）</h4>
+        <p>備品・消耗品の在庫を管理します。まず「品目」を登録し、入庫・出庫・棚卸を記録すると現在在庫が自動計算されます。入庫時に「同時に支出（消耗品費）を記録」すると、支出取引が自動作成され紐付きます。発注点を下回るとダッシュボードと在庫画面で警告が出ます。</p>
+      </div></div>
       <div class="help-item"><div class="help-ico">📊</div><div>
         <h4>ダッシュボード</h4>
         <p>収入・支出・収支のサマリーと、「科目別支出の円グラフ」でお金の流れをひと目で確認できます。</p>
@@ -646,7 +749,7 @@ function defaultReportSettings(){return {auditors:['',''],auditText:DEFAULT_AUDI
 function newOrg(name,fyStartMonth){
   return {id:uid(),name:name||'新しい団体',fyStartMonth:fyStartMonth||4,
     bookNames:DEFAULT_BOOK_NAMES.slice(),report:defaultReportSettings(),
-    accounts:defaultAccounts(),transactions:[],receipts:[],categories:JSON.parse(JSON.stringify(DEFAULT_CATS))};
+    accounts:defaultAccounts(),transactions:[],receipts:[],items:[],stockMoves:[],categories:JSON.parse(JSON.stringify(DEFAULT_CATS))};
 }
 /* 既存データに帳簿・報告書設定を補完（後方互換） */
 function migrateOrg(o){
@@ -655,6 +758,10 @@ function migrateOrg(o){
   (o.transactions||[]).forEach(t=>{if(t.book!==1&&t.book!==2)t.book=1;});
   if(!Array.isArray(o.receipts))o.receipts=[];
   o.receipts.forEach(r=>{if(r.book!==1&&r.book!==2)r.book=1;if(r.txId===undefined)r.txId=null;});
+  if(!Array.isArray(o.items))o.items=[];
+  o.items.forEach(it=>{if(it.book!==1&&it.book!==2)it.book=1;});
+  if(!Array.isArray(o.stockMoves))o.stockMoves=[];
+  o.stockMoves.forEach(m=>{if(m.book!==1&&m.book!==2)m.book=1;if(m.txId===undefined)m.txId=null;});
   if(!o.report||typeof o.report!=='object')o.report=defaultReportSettings();
   if(!Array.isArray(o.report.auditors))o.report.auditors=['',''];
   while(o.report.auditors.length<2)o.report.auditors.push('');
@@ -792,6 +899,7 @@ function refreshActive(){
   else if(v==='transactions')renderTx();
   else if(v==='accounts')renderAccounts();
   else if(v==='receipts')renderReceipts();
+  else if(v==='inventory')renderInventory();
   else if(v==='report')syncReportDefaults();
   else if(v==='settings')renderSettings();
 }
@@ -804,6 +912,7 @@ function showView(v){
   if(v==='transactions')renderTx();
   if(v==='accounts')renderAccounts();
   if(v==='receipts')renderReceipts();
+  if(v==='inventory')renderInventory();
   if(v==='report')syncReportDefaults();
   if(v==='settings')renderSettings();
   window.scrollTo(0,0);
@@ -836,7 +945,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeHelp();closeRe
 
 /* ============ スワイプで画面切替（スマホ） ============ */
 (function(){
-  const ORDER=['dashboard','transactions','accounts','receipts','report','settings'];
+  const ORDER=['dashboard','transactions','accounts','receipts','inventory','report','settings'];
   /* 横スクロールできる要素（テーブル・ナビ等）上での操作はスワイプ切替の対象外 */
   function inHScroll(el){
     while(el&&el!==document.body&&el.nodeType===1){
@@ -1021,6 +1130,7 @@ function delTx(id){
   if(!confirm('この取引を削除しますか？'))return;
   org().transactions=org().transactions.filter(t=>t.id!==id);
   (org().receipts||[]).forEach(r=>{if(r.txId===id)r.txId=null;}); // 紐付けは解除（画像は残す）
+  (org().stockMoves||[]).forEach(m=>{if(m.txId===id)m.txId=null;}); // 在庫記録の紐付けも解除
   save();buildFYSelect();renderTx();
 }
 
@@ -1153,6 +1263,7 @@ function delAccount(id){
     const removed=new Set(relTx.map(t=>t.id));
     org().transactions=org().transactions.filter(t=>!(t.account===id||t.toAccount===id));
     (org().receipts||[]).forEach(r=>{if(r.txId&&removed.has(r.txId))r.txId=null;}); // 紐付け解除
+    (org().stockMoves||[]).forEach(m=>{if(m.txId&&removed.has(m.txId))m.txId=null;}); // 在庫の紐付け解除
   }else{
     if(!confirm(`口座「${a.name}」を削除しますか？`))return;
   }
@@ -1267,6 +1378,10 @@ function renderDashboard(){
   ];
   document.getElementById('dashCards').innerHTML=cards.map(c=>
     `<div class="card ${c.cls}"><div class="label">${c.label}</div><div class="value">${c.value}</div></div>`).join('');
+
+  const lowD=lowStockItems();
+  document.getElementById('dashLowStock').innerHTML=lowD.length
+    ?`<div class="alert-box">⚠️ 在庫が発注点を下回っています（${lowD.length}件）：${lowD.map(i=>esc(i.name)+'（'+qtyFmt(itemStock(i.id))+esc(i.unit||'')+'）').join('、')}　<a onclick="showView('inventory')">在庫を見る →</a></div>`:'';
 
   const dashAccts=accountsOfBook(currentBook);
   const showBook=currentBook==='all';
@@ -2067,6 +2182,380 @@ function delReceipt(){
   save();closeReceiptModal();renderReceipts();renderTx();
 }
 
+/* ============ 在庫管理（備品・消耗品 / 会計連動） ============ */
+function qtyFmt(n){n=+n||0;return (Math.round(n*100)/100).toLocaleString('ja-JP');}
+function itemById(id){return (org().items||[]).find(i=>i.id===id);}
+function itemsOfBook(book){return (org().items||[]).filter(i=>inBook(i,book));}
+/* 現在在庫 = 期首在庫 + Σ入庫 − Σ出庫 ± 棚卸調整（会計年度をまたいで累積） */
+function itemStock(itemId){
+  const it=itemById(itemId); let q=it?(+it.opening||0):0;
+  for(const m of (org().stockMoves||[])){
+    if(m.itemId!==itemId)continue;
+    if(m.type==='in')q+=+m.qty||0;
+    else if(m.type==='out')q-=+m.qty||0;
+    else if(m.type==='adjust')q+=+m.qty||0; // qtyは符号付き差分
+  }
+  return Math.round(q*1e6)/1e6;
+}
+function itemLow(it){const r=+it.reorder||0;return r>0 && itemStock(it.id)<=r;}
+function lowStockItems(){return itemsOfBook(currentBook).filter(itemLow);}
+
+/* --- 入出庫・棚卸フォーム --- */
+let moveType='in';
+function setMoveType(t){
+  moveType=t;
+  const cls={in:'on-income',out:'on-expense',adjust:'on-transfer'};
+  document.querySelectorAll('#moveTypeSeg button').forEach(b=>b.className=(b.dataset.mtype===t)?cls[t]:'');
+  document.getElementById('moveQtyWrap').childNodes[0].nodeValue={in:'入庫数',out:'出庫数',adjust:'実在庫数（棚卸後の数量）'}[t];
+  document.getElementById('movePriceWrap').style.display=(t==='in')?'flex':'none';
+  document.getElementById('moveExpenseWrap').style.display=(t==='in')?'block':'none';
+  updateMoveHint();updateMoveAmount();
+}
+function buildMoveBookSelect(){
+  const sel=document.getElementById('moveBook');const prev=sel.value;
+  sel.innerHTML=[1,2].map(n=>`<option value="${n}">${esc(bookName(n))}</option>`).join('');
+  sel.value=(prev==='1'||prev==='2')?prev:(currentBook==='all'?'1':String(currentBook));
+}
+function moveFormBook(){return document.getElementById('moveBook').value==='2'?2:1;}
+function fillMoveItemSelect(){
+  const sel=document.getElementById('moveItem');const prev=sel.value;
+  const items=itemsOfBook(moveFormBook());
+  sel.innerHTML=items.length?items.map(i=>`<option value="${i.id}">${esc(i.name)}（在庫 ${qtyFmt(itemStock(i.id))}${esc(i.unit||'')}）</option>`).join(''):'<option value="">品目がありません</option>';
+  if(prev&&items.some(i=>i.id===prev))sel.value=prev;
+}
+function fillMoveExpenseSelects(){
+  const book=moveFormBook();
+  const accSel=document.getElementById('moveAccount');const pa=accSel.value;
+  accSel.innerHTML=accountsOfBook(book).map(a=>`<option value="${a.id}">${esc(a.name)}</option>`).join('');
+  if(pa&&[...accSel.options].some(o=>o.value===pa))accSel.value=pa;
+  const sel=document.getElementById('moveCategory');const pc=sel.value;
+  const cats=org().categories.expense;
+  const def=cats.includes('消耗品費')?'消耗品費':(cats[0]||'');
+  sel.innerHTML=cats.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  sel.value=(pc&&cats.includes(pc))?pc:def;
+}
+function updateMoveHint(){
+  const id=document.getElementById('moveItem').value;const it=itemById(id);
+  const h=document.getElementById('moveHint');
+  if(!it){h.textContent='';return;}
+  const cur=itemStock(id);
+  h.textContent=(moveType==='adjust')
+    ?`現在の帳簿在庫：${qtyFmt(cur)}${it.unit||''} → 入力した実在庫数との差分を棚卸調整として記録します。`
+    :`「${it.name}」の現在在庫：${qtyFmt(cur)}${it.unit||''}`;
+}
+function updateMoveAmount(){
+  const amt=Math.round((+document.getElementById('moveQty').value||0)*(+document.getElementById('movePrice').value||0));
+  document.getElementById('moveAmountHint').textContent='支出額：'+yen(amt);
+}
+document.querySelectorAll('#moveTypeSeg button').forEach(b=>b.onclick=()=>setMoveType(b.dataset.mtype));
+document.getElementById('moveBook').onchange=()=>{fillMoveItemSelect();fillMoveExpenseSelects();updateMoveHint();updateMoveAmount();};
+document.getElementById('moveItem').onchange=updateMoveHint;
+document.getElementById('moveQty').addEventListener('input',updateMoveAmount);
+document.getElementById('movePrice').addEventListener('input',updateMoveAmount);
+document.getElementById('moveMakeExpense').onchange=function(){document.getElementById('moveExpenseFields').style.display=this.checked?'grid':'none';};
+
+document.getElementById('moveForm').onsubmit=e=>{
+  e.preventDefault();
+  const itemId=document.getElementById('moveItem').value;
+  const it=itemById(itemId);
+  if(!it){alert('品目を選んでください。先に品目を追加してください。');return;}
+  const book=moveFormBook();
+  const date=document.getElementById('moveDate').value;
+  const memo=document.getElementById('moveMemo').value.trim();
+  const qtyInput=+document.getElementById('moveQty').value;
+  const editId=document.getElementById('moveEditId').value;
+  if(editId){
+    const m=(org().stockMoves||[]).find(x=>x.id===editId);
+    if(!m){resetMoveForm();return;}
+    if(!(qtyInput>0)){alert('数量を正しく入力してください');return;}
+    m.date=date;m.qty=qtyInput;m.reason=memo;
+    if(m.type==='in'){
+      m.unitPrice=Math.round(+document.getElementById('movePrice').value||0);
+      if(m.txId){const tx=org().transactions.find(t=>t.id===m.txId);
+        if(tx){const na=Math.round(qtyInput*m.unitPrice);if(na>0)tx.amount=na;tx.date=date;}}
+    }
+    save();resetMoveForm();buildFYSelect();renderInventory();renderTx();return;
+  }
+  if(moveType==='adjust'){
+    if(document.getElementById('moveQty').value===''){alert('実在庫数を入力してください');return;}
+    const cur=itemStock(itemId);
+    const delta=Math.round((qtyInput-cur)*1e6)/1e6;
+    if(delta===0){alert('帳簿在庫と一致しています（差分なし）。');return;}
+    org().stockMoves.push({id:uid(),itemId,book,type:'adjust',qty:delta,unitPrice:0,reason:memo||'棚卸調整',txId:null,createdAt:Date.now(),date});
+  }else{
+    if(!(qtyInput>0)){alert('数量を正しく入力してください');return;}
+    const unitPrice=moveType==='in'?Math.round(+document.getElementById('movePrice').value||0):0;
+    if(moveType==='out'&&qtyInput>itemStock(itemId)&&!confirm('現在在庫より多い出庫です。在庫がマイナスになりますが続けますか？'))return;
+    const mv={id:uid(),itemId,book,type:moveType,qty:qtyInput,unitPrice,reason:memo,txId:null,createdAt:Date.now(),date};
+    if(moveType==='in'&&document.getElementById('moveMakeExpense').checked){
+      const amount=Math.round(qtyInput*unitPrice);
+      if(amount>0){
+        const account=document.getElementById('moveAccount').value;
+        if(!account){alert('支出を記録する口座がありません。口座を追加するか、支出記録のチェックを外してください。');return;}
+        const category=document.getElementById('moveCategory').value||'消耗品費';
+        const tx={id:uid(),type:'expense',book,date,amount,account,category,memo:it.name+(memo?'（'+memo+'）':'')};
+        org().transactions.push(tx);
+        mv.txId=tx.id;
+        if(category&&!org().categories.expense.includes(category))org().categories.expense.push(category);
+      }else if(!confirm('単価が0のため支出は記録されません。入庫のみ登録しますか？'))return;
+    }
+    org().stockMoves.push(mv);
+  }
+  save();resetMoveForm();buildFYSelect();renderInventory();renderTx();
+};
+function resetMoveForm(){
+  document.getElementById('moveForm').reset();
+  document.getElementById('moveEditId').value='';
+  buildMoveBookSelect();fillMoveItemSelect();fillMoveExpenseSelects();
+  document.getElementById('moveDate').value=todayStr();
+  document.getElementById('moveMakeExpense').checked=true;
+  document.getElementById('moveExpenseFields').style.display='grid';
+  document.getElementById('moveBook').disabled=false;
+  document.getElementById('moveItem').disabled=false;
+  document.getElementById('moveSubmit').textContent='登録';
+  document.getElementById('moveFormTitle').textContent='入出庫を登録';
+  document.getElementById('moveCancel').style.display='none';
+  setMoveType('in');
+}
+document.getElementById('moveCancel').onclick=resetMoveForm;
+function editMove(id){
+  const m=(org().stockMoves||[]).find(x=>x.id===id);if(!m||m.type==='adjust')return;
+  resetMoveForm();
+  document.getElementById('moveBook').value=String(m.book||1);
+  document.getElementById('moveBook').disabled=true;
+  fillMoveItemSelect();fillMoveExpenseSelects();
+  document.getElementById('moveItem').value=m.itemId;
+  document.getElementById('moveItem').disabled=true;
+  setMoveType(m.type);
+  document.getElementById('moveEditId').value=m.id;
+  document.getElementById('moveDate').value=m.date;
+  document.getElementById('moveQty').value=m.qty;
+  if(m.type==='in')document.getElementById('movePrice').value=m.unitPrice||0;
+  document.getElementById('moveMemo').value=m.reason||'';
+  document.getElementById('moveExpenseWrap').style.display='none'; // 編集時は連動の新規作成を隠す
+  document.getElementById('moveSubmit').textContent='更新';
+  document.getElementById('moveFormTitle').textContent='在庫記録を編集'+(m.txId?'（連動支出の金額も更新されます）':'');
+  document.getElementById('moveCancel').style.display='inline-block';
+  updateMoveHint();updateMoveAmount();
+  document.getElementById('moveForm').scrollIntoView({behavior:'smooth',block:'center'});
+}
+function delMove(id){
+  const m=(org().stockMoves||[]).find(x=>x.id===id);if(!m)return;
+  if(!confirm('この在庫記録を削除しますか？'))return;
+  if(m.txId&&org().transactions.some(t=>t.id===m.txId)){
+    if(confirm('この入庫に紐付く支出取引も一緒に削除しますか？\n（OK：支出も削除／キャンセル：在庫記録のみ削除し支出は残す）'))
+      org().transactions=org().transactions.filter(t=>t.id!==m.txId);
+  }
+  org().stockMoves=org().stockMoves.filter(x=>x.id!==id);
+  if(document.getElementById('moveEditId').value===id)resetMoveForm();
+  save();buildFYSelect();renderInventory();renderTx();
+}
+function quickMove(itemId,type){
+  const it=itemById(itemId);if(!it)return;
+  resetMoveForm();
+  document.getElementById('moveBook').value=String(it.book||1);
+  fillMoveItemSelect();fillMoveExpenseSelects();
+  document.getElementById('moveItem').value=itemId;
+  setMoveType(type);updateMoveHint();
+  document.getElementById('moveForm').scrollIntoView({behavior:'smooth',block:'center'});
+  document.getElementById('moveQty').focus();
+}
+
+/* --- 品目マスタ --- */
+function buildItemBookSelect(){
+  const sel=document.getElementById('itemBook');const prev=sel.value;
+  sel.innerHTML=[1,2].map(n=>`<option value="${n}">${esc(bookName(n))}</option>`).join('');
+  sel.value=(prev==='1'||prev==='2')?prev:(currentBook==='all'?'1':String(currentBook));
+}
+document.getElementById('itemForm').onsubmit=e=>{
+  e.preventDefault();
+  const name=document.getElementById('itemName').value.trim();
+  if(!name){alert('品目名を入力してください');return;}
+  const d={
+    name,
+    unit:document.getElementById('itemUnit').value.trim()||'個',
+    sku:document.getElementById('itemSku').value.trim(),
+    cost:Math.round(+document.getElementById('itemCost').value||0),
+    reorder:+document.getElementById('itemReorder').value||0,
+    opening:+document.getElementById('itemOpening').value||0,
+    note:document.getElementById('itemNote').value.trim(),
+    book:document.getElementById('itemBook').value==='2'?2:1
+  };
+  const editId=document.getElementById('itemEditId').value;
+  if(editId){
+    const it=itemById(editId);if(!it){resetItemForm();return;}
+    const used=(org().stockMoves||[]).some(m=>m.itemId===editId);
+    it.name=d.name;it.unit=d.unit;it.sku=d.sku;it.cost=d.cost;it.reorder=d.reorder;it.opening=d.opening;it.note=d.note;
+    if(!used)it.book=d.book;
+  }else{
+    org().items.push(Object.assign({id:uid()},d));
+  }
+  save();resetItemForm();renderInventory();
+};
+function resetItemForm(){
+  document.getElementById('itemForm').reset();
+  document.getElementById('itemEditId').value='';
+  document.getElementById('itemUnit').value='個';
+  document.getElementById('itemBook').disabled=false;
+  buildItemBookSelect();
+  document.getElementById('itemSubmit').textContent='追加';
+  document.getElementById('itemFormTitle').textContent='品目を追加';
+  document.getElementById('itemCancel').style.display='none';
+}
+document.getElementById('itemCancel').onclick=resetItemForm;
+function editItem(id){
+  const it=itemById(id);if(!it)return;
+  buildItemBookSelect();
+  document.getElementById('itemEditId').value=id;
+  document.getElementById('itemName').value=it.name;
+  document.getElementById('itemUnit').value=it.unit||'個';
+  document.getElementById('itemSku').value=it.sku||'';
+  document.getElementById('itemCost').value=it.cost||0;
+  document.getElementById('itemReorder').value=it.reorder||0;
+  document.getElementById('itemOpening').value=it.opening||0;
+  document.getElementById('itemNote').value=it.note||'';
+  document.getElementById('itemBook').value=String(it.book||1);
+  const used=(org().stockMoves||[]).some(m=>m.itemId===id);
+  document.getElementById('itemBook').disabled=used;
+  document.getElementById('itemFormTitle').textContent='品目を編集'+(used?'（帳簿は変更不可）':'');
+  document.getElementById('itemSubmit').textContent='更新';
+  document.getElementById('itemCancel').style.display='inline-block';
+  document.getElementById('itemForm').scrollIntoView({behavior:'smooth',block:'center'});
+}
+function delItem(id){
+  const it=itemById(id);if(!it)return;
+  const moves=(org().stockMoves||[]).filter(m=>m.itemId===id);
+  if(moves.length){
+    if(!confirm(`品目「${it.name}」には在庫記録が ${moves.length} 件あります。品目と記録をすべて削除しますか？\n（紐付けた支出取引は削除されず残ります）`))return;
+    org().stockMoves=org().stockMoves.filter(m=>m.itemId!==id);
+  }else{
+    if(!confirm(`品目「${it.name}」を削除しますか？`))return;
+  }
+  if(document.getElementById('itemEditId').value===id)resetItemForm();
+  org().items=org().items.filter(x=>x.id!==id);
+  save();renderInventory();
+}
+
+/* --- 履歴フィルタ --- */
+function buildInvFilterItemSelect(){
+  const sel=document.getElementById('invFltItem');const prev=sel.value;
+  sel.innerHTML='<option value="">すべて</option>'+itemsOfBook(currentBook).map(i=>`<option value="${i.id}">${esc(i.name)}</option>`).join('');
+  if(prev&&[...sel.options].some(o=>o.value===prev))sel.value=prev;
+}
+function filteredMoves(){
+  const from=document.getElementById('invFrom').value,to=document.getElementById('invTo').value;
+  const item=document.getElementById('invFltItem').value,type=document.getElementById('invFltType').value;
+  return (org().stockMoves||[]).filter(m=>{
+    if(!inBook(m,currentBook))return false;
+    if(from&&m.date<from)return false;
+    if(to&&m.date>to)return false;
+    if(item&&m.itemId!==item)return false;
+    if(type&&m.type!==type)return false;
+    return true;
+  }).sort((a,b)=>b.date<a.date?-1:b.date>a.date?1:(b.createdAt||0)-(a.createdAt||0));
+}
+function invResetToFY(){const {from,to}=fyRange(currentFY,org().fyStartMonth);document.getElementById('invFrom').value=from;document.getElementById('invTo').value=to;renderMoveTable();}
+function invClearFilters(){['invFrom','invTo','invFltItem','invFltType'].forEach(id=>document.getElementById(id).value='');renderMoveTable();}
+['invFrom','invTo','invFltItem','invFltType'].forEach(id=>document.getElementById(id).addEventListener('input',renderMoveTable));
+
+/* --- 描画 --- */
+function renderItemTable(){
+  const items=itemsOfBook(currentBook);const showBook=currentBook==='all';
+  const t=document.getElementById('itemTable');
+  document.getElementById('invCount').textContent=items.length?items.length+'品目':'';
+  if(!items.length){t.innerHTML='<tbody><tr><td class="empty">品目がありません。上のフォームから追加してください。</td></tr></tbody>';return;}
+  let totalVal=0;
+  const rows=items.map(it=>{
+    const stock=itemStock(it.id),low=itemLow(it),val=stock*(+it.cost||0);totalVal+=val;
+    return `<tr class="${low?'low-stock':''}">
+      <td>${esc(it.name)}${it.sku?` <span class="muted" style="font-size:11px">${esc(it.sku)}</span>`:''}${showBook?` <span class="pill">${esc(bookName(it.book||1))}</span>`:''}</td>
+      <td class="num stock-num ${low?'low':''}">${qtyFmt(stock)} ${esc(it.unit||'')}${low?' ⚠️':''}</td>
+      <td class="num">${it.reorder?qtyFmt(it.reorder):'—'}</td>
+      <td class="num">${yen(val)}</td>
+      <td class="no-print"><div class="row-actions">
+        <button class="icon-btn" onclick="quickMove('${it.id}','in')" title="入庫">＋</button>
+        <button class="icon-btn" onclick="quickMove('${it.id}','out')" title="出庫">－</button>
+        <button class="icon-btn" onclick="editItem('${it.id}')" title="編集">✎</button>
+        <button class="icon-btn del" onclick="delItem('${it.id}')" title="削除">🗑</button>
+      </div></td>
+    </tr>`;
+  }).join('');
+  t.innerHTML=`<thead><tr><th>品目</th><th class="num">現在在庫</th><th class="num">発注点</th><th class="num">在庫金額</th><th class="no-print"></th></tr></thead><tbody>${rows}</tbody><tbody><tr class="total-row"><td>在庫金額 合計</td><td></td><td></td><td class="num">${yen(totalVal)}</td><td class="no-print"></td></tr></tbody>`;
+}
+function renderMoveTable(){
+  const list=filteredMoves();const showBook=currentBook==='all';
+  const t=document.getElementById('moveTable');
+  if(!list.length){t.innerHTML='<tbody><tr><td class="empty">該当する在庫記録がありません</td></tr></tbody>';return;}
+  const ml={in:'入庫',out:'出庫',adjust:'棚卸'};
+  const rows=list.map(m=>{
+    const it=itemById(m.itemId);
+    const qtyCell=m.type==='adjust'
+      ?`<span class="${m.qty<0?'amt-expense':'amt-income'}">${m.qty>0?'+':''}${qtyFmt(m.qty)}</span>`
+      :m.type==='in'?`<span class="amt-income">+${qtyFmt(m.qty)}</span>`:`<span class="amt-expense">-${qtyFmt(m.qty)}</span>`;
+    const amt=(m.type==='in'&&m.unitPrice)?yen(Math.round(m.qty*m.unitPrice)):'';
+    const linked=m.txId?' <span class="pill" title="支出に連動">💰連動</span>':'';
+    return `<tr>
+      <td>${m.date}</td>
+      ${showBook?`<td><span class="pill">${esc(bookName(m.book||1))}</span></td>`:''}
+      <td><span class="mv-tag ${m.type}">${ml[m.type]}</span></td>
+      <td>${esc(it?it.name:'（削除済み品目）')}</td>
+      <td class="num">${qtyCell} ${esc(it?(it.unit||''):'')}</td>
+      <td class="num">${amt}${linked}</td>
+      <td class="muted">${esc(m.reason||'')}</td>
+      <td class="no-print"><div class="row-actions">
+        ${m.type!=='adjust'?`<button class="icon-btn" onclick="editMove('${m.id}')" title="編集">✎</button>`:''}
+        <button class="icon-btn del" onclick="delMove('${m.id}')" title="削除">🗑</button>
+      </div></td>
+    </tr>`;
+  }).join('');
+  t.innerHTML=`<thead><tr><th>日付</th>${showBook?'<th>帳簿</th>':''}<th>区分</th><th>品目</th><th class="num">数量</th><th class="num">金額</th><th>メモ</th><th class="no-print"></th></tr></thead><tbody>${rows}</tbody>`;
+}
+function renderInventory(){
+  // 選択中の記録が消えていたらフォームを初期化（団体・帳簿切替対応）
+  const mEdit=document.getElementById('moveEditId').value;
+  if(mEdit&&!(org().stockMoves||[]).some(m=>m.id===mEdit))resetMoveForm();
+  const iEdit=document.getElementById('itemEditId').value;
+  if(iEdit&&!(org().items||[]).some(i=>i.id===iEdit))resetItemForm();
+  buildMoveBookSelect();fillMoveItemSelect();fillMoveExpenseSelects();buildItemBookSelect();
+  if(!document.getElementById('moveDate').value)document.getElementById('moveDate').value=todayStr();
+  document.getElementById('invSub').textContent=`${org().name}　/　${bookLabel(currentBook)}（在庫数は年度をまたいで累積）`;
+  const low=lowStockItems();
+  document.getElementById('invAlert').innerHTML=low.length
+    ?`<div class="alert-box">⚠️ 発注点を下回っている品目が ${low.length} 件あります：${low.map(i=>esc(i.name)+'（'+qtyFmt(itemStock(i.id))+esc(i.unit||'')+'）').join('、')}</div>`:'';
+  renderItemTable();
+  buildInvFilterItemSelect();
+  renderMoveTable();
+}
+
+/* --- 在庫の CSV / Excel 出力 --- */
+function exportInventoryCSV(){
+  const rows=filteredMoves();const ml={in:'入庫',out:'出庫',adjust:'棚卸'};
+  const head=['日付','帳簿','区分','品目','単位','数量','単価','金額','紐付支出','メモ'];
+  const lines=[head.join(',')].concat(rows.map(m=>{
+    const it=itemById(m.itemId);const amt=(m.type==='in'&&m.unitPrice)?Math.round(m.qty*m.unitPrice):'';
+    return [m.date,csv(bookName(m.book||1)),ml[m.type],csv(it?it.name:''),csv(it?(it.unit||''):''),m.qty,m.type==='in'?(m.unitPrice||''):'',amt,m.txId?'あり':'',csv(m.reason||'')].join(',');
+  }));
+  const blob=new Blob(['﻿'+lines.join('\r\n')],{type:'text/csv'});
+  download(blob,`在庫履歴_${org().name}_${todayStr()}.csv`);
+}
+function exportInventoryExcel(){
+  const HB=v=>T(v,5),TX=v=>T(v,4),MN=v=>Nn(v,6),MB=v=>Nn(v,7),EB=()=>T('',4),MQ=v=>({t:'n',v:(+v||0),s:6});
+  const items=itemsOfBook(currentBook);
+  const r1=[];
+  r1.push([T(org().name,1)]);r1.push([T('在庫 品目一覧（'+bookLabel(currentBook)+'）',1)]);r1.push([T('作成日：'+todayStr())]);r1.push([]);
+  r1.push([HB('品目'),HB('SKU'),HB('単位'),HB('現在在庫'),HB('発注点'),HB('単価'),HB('在庫金額')]);
+  let tv=0;
+  items.forEach(it=>{const s=itemStock(it.id),v=s*(+it.cost||0);tv+=v;
+    r1.push([TX(it.name),TX(it.sku||''),TX(it.unit||''),MQ(s),it.reorder?MQ(it.reorder):EB(),MN(it.cost||0),MN(v)]);});
+  r1.push([HB('在庫金額 合計'),EB(),EB(),EB(),EB(),EB(),MB(tv)]);
+  const ml={in:'入庫',out:'出庫',adjust:'棚卸'};
+  const r2=[];r2.push([T('入出庫履歴（'+bookLabel(currentBook)+'）',1)]);r2.push([]);
+  r2.push([HB('日付'),HB('区分'),HB('品目'),HB('数量'),HB('単価'),HB('金額'),HB('紐付支出'),HB('メモ')]);
+  filteredMoves().forEach(m=>{const it=itemById(m.itemId);const amt=(m.type==='in'&&m.unitPrice)?Math.round(m.qty*m.unitPrice):0;
+    r2.push([TX(m.date),TX(ml[m.type]),TX(it?it.name:''),MQ(m.qty),m.type==='in'?MN(m.unitPrice||0):EB(),amt?MN(amt):EB(),TX(m.txId?'あり':''),TX(m.reason||'')]);});
+  downloadXlsx([{name:'品目一覧',rows:r1,cols:[24,12,8,12,10,10,14]},{name:'入出庫履歴',rows:r2,cols:[12,8,24,10,10,12,10,24]}],`在庫データ_${safeName(org().name)}_${todayStr()}.xlsx`);
+}
+
 /* ============ インポート/エクスポート ============ */
 const EXPORT_APP='kaikei-app', EXPORT_VER=2;
 function safeName(s){return String(s||'').replace(/[\\/:*?"<>|]/g,'_').replace(/\s+/g,'_').slice(0,40)||'data';}
@@ -2109,6 +2598,13 @@ function cloneOrgWithNewIds(src){
     const nid=uid();rcptMap[r.id]=nid;r.id=nid;
     r.txId=(r.txId&&txMap[r.txId])?txMap[r.txId]:null;
   });
+  const itemMap={};
+  (o.items||[]).forEach(it=>{const nid=uid();itemMap[it.id]=nid;it.id=nid;});
+  (o.stockMoves||[]).forEach(m=>{
+    m.id=uid();
+    if(m.itemId&&itemMap[m.itemId])m.itemId=itemMap[m.itemId];
+    m.txId=(m.txId&&txMap[m.txId])?txMap[m.txId]:null;
+  });
   migrateOrg(o);
   o.__rcptMap=rcptMap; // 画像の再キー用（保存前に addImportedOrg で除去）
   return o;
@@ -2122,6 +2618,8 @@ function addImportedOrg(raw){
     accounts:(Array.isArray(raw.accounts)&&raw.accounts.length)?raw.accounts:defaultAccounts(),
     transactions:Array.isArray(raw.transactions)?raw.transactions:[],
     receipts:Array.isArray(raw.receipts)?raw.receipts:[],
+    items:Array.isArray(raw.items)?raw.items:[],
+    stockMoves:Array.isArray(raw.stockMoves)?raw.stockMoves:[],
     categories:raw.categories||JSON.parse(JSON.stringify(DEFAULT_CATS))
   };
   const o=cloneOrgWithNewIds(base);
@@ -2219,6 +2717,10 @@ function initAll(){
   document.getElementById('fltTo').value=to;
   document.getElementById('repFrom').value='';
   document.getElementById('repTo').value='';
+  resetMoveForm();
+  resetItemForm();
+  document.getElementById('invFrom').value=from;
+  document.getElementById('invTo').value=to;
   renderDashboard();
 }
 initAll();
